@@ -7,7 +7,7 @@ export default function App() {
     <ControlProvider>
       <div className="flex h-screen bg-[#0d1117] text-zinc-100 overflow-hidden">
         <Sidebar />
-        <main className="flex flex-1 flex-col overflow-hidden">
+        <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Top header bar */}
           <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-[#0f1117] shrink-0">
             <div /> {/* left spacer — page sets its own title */}

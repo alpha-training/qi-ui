@@ -1,34 +1,17 @@
-/**
- * ControlPage — top-level layout for the Control tab.
- *
- * Wires together:
- *  - Stack tabs + ⋮ menu (add / clone / delete)
- *  - Graph ↔ Table toggle
- *  - Start all / Stop all
- *  - Palette + Canvas (or Table)
- *  - JSON panel
- *  - Logs panel
- *  - Keyboard shortcuts
- *  - dnd-kit drop handling
- */
 import { useState, useEffect, useCallback } from 'react'
 import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { Share2, List, Play, Square, Plus, MoreHorizontal } from 'lucide-react'
-
 import { useControl } from '../context/ControlContext'
 import { autoName } from '../utils/stack'
 import type { Stack } from '../types'
-
 import ProcessPalette from '../components/control/ProcessPalette'
 import StackCanvas    from '../components/control/StackCanvas'
 import ProcessTable   from '../components/control/ProcessTable'
 import JsonPanel      from '../components/control/JsonPanel'
 import LogsPanel      from '../components/control/LogsPanel'
-
-// ─── Modals ───────────────────────────────────────────────────────────────────
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -40,8 +23,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
     </div>
   )
 }
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ControlPage() {
   const {
@@ -58,10 +39,8 @@ export default function ControlPage() {
   const [newName, setNewName]       = useState('')
   const [activeDrag, setActiveDrag] = useState<string | null>(null)
 
-  const stack = stacks[activeStack]
   const stackNames = Object.keys(stacks)
 
-  // ── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
@@ -75,101 +54,80 @@ export default function ControlPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [selectedProc, activeStack, startProcess, stopProcess, setSelectedProc])
 
-  // ── dnd-kit ─────────────────────────────────────────────────────────────────
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveDrag(null)
     const { active, over } = event
-
-    // Only handle drops onto the canvas droppable
     if (over?.id !== 'canvas') return
     const currentStack = stacks[activeStack]
     if (!currentStack) return
-
     const pkg = (active.data.current as { pkg: string }).pkg
     const name = autoName(pkg, currentStack.processes)
     const portOffset = Object.keys(currentStack.processes).length
-
     const updated: Stack = {
       ...currentStack,
-      processes: {
-        ...currentStack.processes,
-        [name]: { pkg, port_offset: portOffset },
-      },
+      processes: { ...currentStack.processes, [name]: { pkg, port_offset: portOffset } },
     }
-
     saveStack(activeStack, updated)
   }, [stacks, activeStack, saveStack])
 
   const handleAddStack = () => {
     if (!newName.trim()) return
-    const emptyStack: Stack = { description: '', base_port: 9000, processes: {} }
-    addStack(newName.trim(), emptyStack)
+    addStack(newName.trim(), { description: '', base_port: 9000, processes: {} })
     setNewName('')
     setShowAdd(false)
   }
 
   return (
-    <DndContext sensors={sensors}
+    <DndContext
+      sensors={sensors}
       onDragStart={e => setActiveDrag((e.active.data.current as { pkg: string }).pkg)}
-      onDragEnd={handleDragEnd}>
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex flex-col h-full overflow-hidden">
 
-      <div className="flex flex-col h-full bg-[#0d1117]">
-
-        {/* ── Top bar ─────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-[#0f1117] shrink-0">
+        {/* Top bar */}
+        <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-[#0f1117]">
           <h1 className="text-white font-bold text-xl mr-2">Stacks</h1>
 
-          {/* View toggle */}
           <button onClick={() => setViewMode(viewMode === 'graph' ? 'table' : 'graph')}
             className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all
               border-blue-500 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20">
-            {viewMode === 'graph'
-              ? <><List size={15} /> Table view</>
-              : <><Share2 size={15} /> Graph view</>}
+            {viewMode === 'graph' ? <><List size={15} /> Table view</> : <><Share2 size={15} /> Graph view</>}
           </button>
 
-          {/* Stack tabs */}
-          <div className="flex items-center gap-1 mx-2">
+          <div className="flex items-center gap-1 mx-2 relative">
             {stackNames.map(name => (
               <button key={name} onClick={() => { setActiveStack(name); setSelectedProc(null) }}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium transition-colors
                   ${activeStack === name
                     ? 'bg-zinc-700 text-white border border-white/15'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-                  }`}>
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
                 {name}
                 {activeStack === name && (
-                  <button onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
-                    className="text-zinc-400 hover:text-white ml-0.5">
+                  <span onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
+                    className="text-zinc-400 hover:text-white ml-0.5 cursor-pointer">
                     <MoreHorizontal size={13} />
-                  </button>
+                  </span>
                 )}
               </button>
             ))}
             <button onClick={() => setShowAdd(true)}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5 transition-colors">
+              className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5">
               <Plus size={14} />
             </button>
+            {showMenu && (
+              <div className="absolute top-9 left-0 z-50 bg-[#1a2233] border border-white/10 rounded-lg shadow-xl w-40"
+                onMouseLeave={() => setShowMenu(false)}>
+                <button onClick={() => { cloneStack(activeStack, `${activeStack}_copy`); setShowMenu(false) }}
+                  className="w-full text-left px-4 py-2.5 text-xs text-zinc-300 hover:bg-white/5">Clone stack</button>
+                <button onClick={() => { setShowDelete(true); setShowMenu(false) }}
+                  className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-white/5">Delete stack</button>
+              </div>
+            )}
           </div>
 
-          {/* ⋮ dropdown */}
-          {showMenu && (
-            <div className="absolute top-14 left-80 z-50 bg-[#1a2233] border border-white/10 rounded-lg shadow-xl w-40"
-              onMouseLeave={() => setShowMenu(false)}>
-              <button onClick={() => { cloneStack(activeStack, `${activeStack}_copy`); setShowMenu(false) }}
-                className="w-full text-left px-4 py-2.5 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition-colors">
-                Clone stack
-              </button>
-              <button onClick={() => { setShowDelete(true); setShowMenu(false) }}
-                className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-white/5 transition-colors">
-                Delete stack
-              </button>
-            </div>
-          )}
-
-          {/* Start / Stop all */}
           <div className="ml-auto flex items-center gap-3">
             <button onClick={() => startAll(activeStack)}
               className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-green-500 text-green-400
@@ -184,20 +142,23 @@ export default function ControlPage() {
           </div>
         </div>
 
-        {/* ── Middle row: palette + view + JSON ────────────────────────── */}
-        <div className="flex flex-1 overflow-hidden">
-          <ProcessPalette />
+        {/* Body: left col + JSON panel */}
+        <div className="flex flex-1 min-h-0">
 
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable />}
+          {/* Left column: canvas area + logs */}
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex flex-1 min-h-0">
+              <ProcessPalette />
+              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable />}
+            </div>
             <LogsPanel />
           </div>
 
+          {/* JSON panel — right, full body height */}
           <JsonPanel />
         </div>
       </div>
 
-      {/* Drag overlay */}
       <DragOverlay>
         {activeDrag && (
           <div className="px-3 py-2 rounded-md bg-blue-600/20 border border-blue-500 text-blue-300 text-xs font-mono shadow-lg">
@@ -206,7 +167,6 @@ export default function ControlPage() {
         )}
       </DragOverlay>
 
-      {/* Add stack modal */}
       {showAdd && (
         <Modal title="Add Stack" onClose={() => setShowAdd(false)}>
           <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
@@ -215,22 +175,21 @@ export default function ControlPage() {
             className="w-full bg-[#0d1117] border border-white/10 rounded-md px-3 py-2 text-sm text-white outline-none focus:border-blue-500 mb-4" />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowAdd(false)}
-              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10 transition-colors">Cancel</button>
+              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10">Cancel</button>
             <button onClick={handleAddStack}
-              className="px-4 py-2 text-xs rounded-md bg-blue-600 hover:bg-blue-500 text-white transition-colors">Create</button>
+              className="px-4 py-2 text-xs rounded-md bg-blue-600 hover:bg-blue-500 text-white">Create</button>
           </div>
         </Modal>
       )}
 
-      {/* Delete confirm modal */}
       {showDelete && (
         <Modal title={`Delete "${activeStack}"?`} onClose={() => setShowDelete(false)}>
           <p className="text-zinc-400 text-xs mb-5">This action cannot be undone.</p>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowDelete(false)}
-              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10 transition-colors">Cancel</button>
+              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10">Cancel</button>
             <button onClick={() => { deleteStack(activeStack); setShowDelete(false) }}
-              className="px-4 py-2 text-xs rounded-md bg-red-700 hover:bg-red-600 text-white transition-colors">Delete</button>
+              className="px-4 py-2 text-xs rounded-md bg-red-700 hover:bg-red-600 text-white">Delete</button>
           </div>
         </Modal>
       )}

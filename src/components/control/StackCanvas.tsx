@@ -1,8 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import ReactFlow, {
   Background, Controls, BackgroundVariant,
-  type Edge, type Node,
-  MarkerType,
+  type Edge, type Node, MarkerType,
 } from 'reactflow'
 import { useDroppable } from '@dnd-kit/core'
 import 'reactflow/dist/style.css'
@@ -12,12 +11,10 @@ import ProcessNode from './ProcessNode'
 
 const nodeTypes = { processNode: ProcessNode }
 
-
-// Colors matching the design exactly
 const EDGE_STYLES = {
-  publishes:  { stroke: '#2dd4bf', strokeWidth: 2 },                          // teal  — feeds → tp
-  subscribes: { stroke: '#818cf8', strokeWidth: 2 },                          // indigo — tp → rdb/wdb
-  hdb:        { stroke: '#fbbf24', strokeWidth: 2, strokeDasharray: '7 4' }, // yellow dashed — wdb → hdb
+  publishes:  { stroke: '#2dd4bf', strokeWidth: 2 },
+  subscribes: { stroke: '#818cf8', strokeWidth: 2 },
+  hdb:        { stroke: '#fbbf24', strokeWidth: 2, strokeDasharray: '7 4' },
 }
 const MARKER_COLORS = {
   publishes:  '#2dd4bf',
@@ -27,8 +24,6 @@ const MARKER_COLORS = {
 
 export default function StackCanvas() {
   const { stacks, activeStack, statuses, selectedProc, setSelectedProc } = useControl()
-
-  // ✅ Drop target wraps the whole canvas — not inside React Flow
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas' })
 
   const stack = stacks[activeStack]
@@ -50,8 +45,7 @@ export default function StackCanvas() {
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: MARKER_COLORS[e.edgeType],
-        width: 16,
-        height: 16,
+        width: 16, height: 16,
       },
     }))
   }, [stack])
@@ -63,9 +57,7 @@ export default function StackCanvas() {
   const onPaneClick = useCallback(() => setSelectedProc(null), [setSelectedProc])
 
   return (
-    // ✅ setNodeRef on the outer wrapper — React Flow is a child, not the drop target
-    <div ref={setNodeRef} className={`flex-1 relative transition-colors
-      ${isOver ? 'bg-[#0d1e30]' : 'bg-[#080e18]'}`}>
+    <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[#0d1e30]' : 'bg-[#080e18]'}`}>
       <ReactFlow
         nodes={nodes.map(n => ({ ...n, selected: n.id === selectedProc }))}
         edges={edges}
@@ -85,7 +77,6 @@ export default function StackCanvas() {
         />
       </ReactFlow>
 
-      {/* Drop hint overlay */}
       {isOver && (
         <div className="absolute inset-0 pointer-events-none z-10 border-2 border-dashed border-blue-500/40 rounded-lg m-2 flex items-center justify-center">
           <span className="text-blue-400/60 text-sm font-medium bg-[#080e18]/80 px-4 py-2 rounded-lg">

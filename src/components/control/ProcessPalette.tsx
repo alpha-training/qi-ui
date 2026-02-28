@@ -18,14 +18,14 @@ function DraggableItem({ pkg }: { pkg: PalettePkg }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-grab active:cursor-grabbing select-none
-        transition-all font-bold text-base border-2
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing select-none
+        transition-all text-sm font-semibold border-2
         ${isDragging
           ? 'opacity-40 border-blue-500/50 bg-[#0f2236]'
           : 'border-[#1a3a52] bg-[#0f2236] hover:bg-[#132b42] hover:border-[#2a5070] text-white'
         }`}
     >
-      <Icon size={18} className="text-white/70" strokeWidth={2} />
+      <Icon size={15} className="text-white/60" strokeWidth={2} />
       <span>{pkg}</span>
     </div>
   )
@@ -33,8 +33,8 @@ function DraggableItem({ pkg }: { pkg: PalettePkg }) {
 
 export default function ProcessPalette() {
   return (
-    <div className="w-[200px] shrink-0 flex flex-col gap-2 px-4 py-5 border-r border-white/5">
-      <p className="text-white text-xl font-bold mb-3 px-1">Processes</p>
+    <div className="w-[168px] shrink-0 flex flex-col gap-1.5 px-3 py-4 border-r border-white/5">
+      <p className="text-white text-lg font-bold mb-2 px-1">Processes</p>
       {PALETTE_PKGS.map(pkg => (
         <DraggableItem key={pkg} pkg={pkg} />
       ))}
