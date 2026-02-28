@@ -1,35 +1,26 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import Sidebar from './components/sidebar/Sidebar'
+import ControlPage from './pages/ControlPage'
+import { ControlProvider } from './context/ControlContext'
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <ControlProvider>
+      <div className="flex h-screen bg-[#0d1117] text-zinc-100 overflow-hidden">
+        <Sidebar />
+        <main className="flex flex-1 flex-col overflow-hidden">
+          {/* Top header bar */}
+          <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-[#0f1117] shrink-0">
+            <div /> {/* left spacer — page sets its own title */}
+            <div className="flex items-center gap-6 text-sm text-zinc-400">
+              <span className="hover:text-white cursor-pointer transition-colors">Workspace</span>
+              <span className="hover:text-white cursor-pointer transition-colors">ENV</span>
+              <span className="text-xs bg-white/5 border border-white/10 rounded px-2 py-0.5">⌘K</span>
+            </div>
+          </header>
+
+          <ControlPage />
+        </main>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </ControlProvider>
   )
 }
-
-export default App
