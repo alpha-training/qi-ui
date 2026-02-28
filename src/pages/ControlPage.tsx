@@ -1,0 +1,198 @@
+import { useState, useEffect, useCallback } from 'react'
+import {
+  DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { Share2, List, Play, Square, Plus, MoreHorizontal } from 'lucide-react'
+import { useControl } from '../context/ControlContext'
+import { autoName } from '../utils/stack'
+import type { Stack } from '../types'
+import ProcessPalette from '../components/control/ProcessPalette'
+import StackCanvas    from '../components/control/StackCanvas'
+import ProcessTable   from '../components/control/ProcessTable'
+import JsonPanel      from '../components/control/JsonPanel'
+import LogsPanel      from '../components/control/LogsPanel'
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center" onClick={onClose}>
+      <div className="bg-[#111827] border border-white/10 rounded-xl p-6 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <h2 className="text-white font-semibold text-sm mb-4">{title}</h2>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export default function ControlPage() {
+  const {
+    stacks, activeStack, setActiveStack,
+    selectedProc, setSelectedProc,
+    viewMode, setViewMode,
+    addStack, cloneStack, deleteStack, saveStack,
+    startAll, stopAll, startProcess, stopProcess,
+  } = useControl()
+
+  const [showMenu, setShowMenu]     = useState(false)
+  const [showAdd, setShowAdd]       = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [newName, setNewName]       = useState('')
+  const [activeDrag, setActiveDrag] = useState<string | null>(null)
+
+  const stackNames = Object.keys(stacks)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (!selectedProc) return
+      if (e.key === 'u') startProcess(activeStack, selectedProc)
+      if (e.key === 'd') stopProcess(activeStack, selectedProc)
+      if (e.key === 'Escape') setSelectedProc(null)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [selectedProc, activeStack, startProcess, stopProcess, setSelectedProc])
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveDrag(null)
+    const { active, over } = event
+    if (over?.id !== 'canvas') return
+    const currentStack = stacks[activeStack]
+    if (!currentStack) return
+    const pkg = (active.data.current as { pkg: string }).pkg
+    const name = autoName(pkg, currentStack.processes)
+    const portOffset = Object.keys(currentStack.processes).length
+    const updated: Stack = {
+      ...currentStack,
+      processes: { ...currentStack.processes, [name]: { pkg, port_offset: portOffset } },
+    }
+    saveStack(activeStack, updated)
+  }, [stacks, activeStack, saveStack])
+
+  const handleAddStack = () => {
+    if (!newName.trim()) return
+    addStack(newName.trim(), { description: '', base_port: 9000, processes: {} })
+    setNewName('')
+    setShowAdd(false)
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={e => setActiveDrag((e.active.data.current as { pkg: string }).pkg)}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex flex-col h-full overflow-hidden">
+
+        {/* Top bar */}
+        <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-[#0f1117]">
+          <h1 className="text-white font-bold text-xl mr-2">Stacks</h1>
+
+          <button onClick={() => setViewMode(viewMode === 'graph' ? 'table' : 'graph')}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all
+              border-blue-500 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20">
+            {viewMode === 'graph' ? <><List size={15} /> Table view</> : <><Share2 size={15} /> Graph view</>}
+          </button>
+
+          <div className="flex items-center gap-1 mx-2 relative">
+            {stackNames.map(name => (
+              <button key={name} onClick={() => { setActiveStack(name); setSelectedProc(null) }}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium transition-colors
+                  ${activeStack === name
+                    ? 'bg-zinc-700 text-white border border-white/15'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                {name}
+                {activeStack === name && (
+                  <span onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
+                    className="text-zinc-400 hover:text-white ml-0.5 cursor-pointer">
+                    <MoreHorizontal size={13} />
+                  </span>
+                )}
+              </button>
+            ))}
+            <button onClick={() => setShowAdd(true)}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5">
+              <Plus size={14} />
+            </button>
+            {showMenu && (
+              <div className="absolute top-9 left-0 z-50 bg-[#1a2233] border border-white/10 rounded-lg shadow-xl w-40"
+                onMouseLeave={() => setShowMenu(false)}>
+                <button onClick={() => { cloneStack(activeStack, `${activeStack}_copy`); setShowMenu(false) }}
+                  className="w-full text-left px-4 py-2.5 text-xs text-zinc-300 hover:bg-white/5">Clone stack</button>
+                <button onClick={() => { setShowDelete(true); setShowMenu(false) }}
+                  className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-white/5">Delete stack</button>
+              </div>
+            )}
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <button onClick={() => startAll(activeStack)}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-green-500 text-green-400
+                text-sm font-bold hover:bg-green-500/10 transition-all">
+              <Play size={13} className="fill-green-400" /> Start all
+            </button>
+            <button onClick={() => stopAll(activeStack)}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-orange-500 text-orange-400
+                text-sm font-bold hover:bg-orange-500/10 transition-all">
+              <Square size={13} className="fill-orange-400" /> Stop all
+            </button>
+          </div>
+        </div>
+
+        {/* Body: left col + JSON panel */}
+        <div className="flex flex-1 min-h-0">
+
+          {/* Left column: canvas area + logs */}
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex flex-1 min-h-0">
+              <ProcessPalette />
+              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable />}
+            </div>
+            <LogsPanel />
+          </div>
+
+          {/* JSON panel — right, full body height */}
+          <JsonPanel />
+        </div>
+      </div>
+
+      <DragOverlay>
+        {activeDrag && (
+          <div className="px-3 py-2 rounded-md bg-blue-600/20 border border-blue-500 text-blue-300 text-xs font-mono shadow-lg">
+            {activeDrag}
+          </div>
+        )}
+      </DragOverlay>
+
+      {showAdd && (
+        <Modal title="Add Stack" onClose={() => setShowAdd(false)}>
+          <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddStack()}
+            placeholder="Stack name"
+            className="w-full bg-[#0d1117] border border-white/10 rounded-md px-3 py-2 text-sm text-white outline-none focus:border-blue-500 mb-4" />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowAdd(false)}
+              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10">Cancel</button>
+            <button onClick={handleAddStack}
+              className="px-4 py-2 text-xs rounded-md bg-blue-600 hover:bg-blue-500 text-white">Create</button>
+          </div>
+        </Modal>
+      )}
+
+      {showDelete && (
+        <Modal title={`Delete "${activeStack}"?`} onClose={() => setShowDelete(false)}>
+          <p className="text-zinc-400 text-xs mb-5">This action cannot be undone.</p>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowDelete(false)}
+              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10">Cancel</button>
+            <button onClick={() => { deleteStack(activeStack); setShowDelete(false) }}
+              className="px-4 py-2 text-xs rounded-md bg-red-700 hover:bg-red-600 text-white">Delete</button>
+          </div>
+        </Modal>
+      )}
+    </DndContext>
+  )
+}
