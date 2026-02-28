@@ -22,7 +22,8 @@ import {
     addStack: (name: string, stack: Stack) => Promise<void>
     cloneStack: (name: string, newName: string) => Promise<void>
     deleteStack: (name: string) => Promise<void>
-    saveStack: (name: string, stack: Stack) => Promise<void>
+    saveStack: (name: string, stack: Stack) => Promise<void>      // persists to API
+    updateStackLocal: (name: string, stack: Stack) => void        // live update, no API call
   
     // Process actions
     startProcess: (stackName: string, proc: string) => Promise<void>
@@ -115,12 +116,17 @@ import {
       addLog('system', 'info', `Stack "${name}" saved`)
     }, [addLog])
   
+    // Live update without API call — used by JSON editor while typing
+    const updateStackLocal = useCallback((name: string, stack: Stack) => {
+      setStacks(s => ({ ...s, [name]: stack }))
+    }, [])
+  
     return (
       <ControlContext.Provider value={{
         stacks, activeStack, setActiveStack,
         selectedProc, setSelectedProc,
         statuses, viewMode, setViewMode, logs,
-        addStack, cloneStack, deleteStack, saveStack,
+        addStack, cloneStack, deleteStack, saveStack, updateStackLocal,
         startProcess, stopProcess, startAll, stopAll,
       }}>
         {children}

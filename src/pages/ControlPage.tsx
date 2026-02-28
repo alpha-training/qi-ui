@@ -48,7 +48,7 @@ export default function ControlPage() {
     stacks, activeStack, setActiveStack,
     selectedProc, setSelectedProc,
     viewMode, setViewMode,
-    addStack, cloneStack, deleteStack,
+    addStack, cloneStack, deleteStack, saveStack,
     startAll, stopAll, startProcess, stopProcess,
   } = useControl()
 
@@ -81,23 +81,26 @@ export default function ControlPage() {
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveDrag(null)
     const { active, over } = event
-    if (over?.id !== 'canvas' || !stack) return
+
+    // Only handle drops onto the canvas droppable
+    if (over?.id !== 'canvas') return
+    const currentStack = stacks[activeStack]
+    if (!currentStack) return
+
     const pkg = (active.data.current as { pkg: string }).pkg
-    const name = autoName(pkg, stack.processes)
-    const portOffset = Object.keys(stack.processes).length
+    const name = autoName(pkg, currentStack.processes)
+    const portOffset = Object.keys(currentStack.processes).length
+
     const updated: Stack = {
-      ...stack,
+      ...currentStack,
       processes: {
-        ...stack.processes,
+        ...currentStack.processes,
         [name]: { pkg, port_offset: portOffset },
       },
     }
-    // Optimistic update via context saveStack would normally go here.
-    // For now, update via addStack replacement logic:
-    import('../context/ControlContext') // no-op — just use stacks directly
-    // We update the store directly through saveStack:
-    // (ControlContext exposes saveStack which calls api.updateStack)
-  }, [stack])
+
+    saveStack(activeStack, updated)
+  }, [stacks, activeStack, saveStack])
 
   const handleAddStack = () => {
     if (!newName.trim()) return
@@ -120,10 +123,11 @@ export default function ControlPage() {
 
           {/* View toggle */}
           <button onClick={() => setViewMode(viewMode === 'graph' ? 'table' : 'graph')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 hover:border-white/20 text-zinc-300 text-xs font-medium transition-colors bg-white/5">
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all
+              border-blue-500 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20">
             {viewMode === 'graph'
-              ? <><List size={13} /> Table view</>
-              : <><Share2 size={13} /> Graph view</>}
+              ? <><List size={15} /> Table view</>
+              : <><Share2 size={15} /> Graph view</>}
           </button>
 
           {/* Stack tabs */}
@@ -166,14 +170,16 @@ export default function ControlPage() {
           )}
 
           {/* Start / Stop all */}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
             <button onClick={() => startAll(activeStack)}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-md border border-green-500 text-green-400 text-xs font-medium hover:bg-green-500/10 transition-colors">
-              <Play size={11} className="fill-green-400" /> Start all
+              className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-green-500 text-green-400
+                text-sm font-bold hover:bg-green-500/10 transition-all">
+              <Play size={13} className="fill-green-400" /> Start all
             </button>
             <button onClick={() => stopAll(activeStack)}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-orange-500 hover:bg-orange-400 text-white text-xs font-medium transition-colors">
-              <Square size={11} className="fill-white" /> Stop all
+              className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-orange-500 text-orange-400
+                text-sm font-bold hover:bg-orange-500/10 transition-all">
+              <Square size={13} className="fill-orange-400" /> Stop all
             </button>
           </div>
         </div>

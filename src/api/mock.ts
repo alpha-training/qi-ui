@@ -16,7 +16,7 @@ let _stacks: Record<string, Stack> = {
       kraken1:  { pkg: 'kraken',  port_offset: 103, publishes_to: ['tp1'] },
       tp1:      { pkg: 'tp',      port_offset: 10,  publishes_to: ['rdb1', 'wdb1'] },
       rdb1:     { pkg: 'rdb',     port_offset: 11,  subscribes_to: { tp1: '*' } },
-      wdb1:     { pkg: 'wdb',     port_offset: 12,  subscribes_to: { tp1: '*' } },
+      wdb1:     { pkg: 'wdb',     port_offset: 12,  subscribes_to: { tp1: '*' }, hdb: 'hdb1' },
       hdb1:     { pkg: 'hdb',     port_offset: 13 },
     },
   },

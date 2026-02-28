@@ -6,25 +6,30 @@ import ReactFlow, {
 } from 'reactflow'
 import { useDroppable } from '@dnd-kit/core'
 import 'reactflow/dist/style.css'
-
 import { useControl } from '../../context/ControlContext'
 import { deriveGraphNodes, deriveGraphEdges } from '../../utils/stack'
 import ProcessNode from './ProcessNode'
 
 const nodeTypes = { processNode: ProcessNode }
 
-function edgeStyle(type: 'publishes' | 'subscribes' | 'hdb') {
-  if (type === 'hdb') return {
-    stroke: '#a78bfa',
-    strokeDasharray: '5 4',
-    strokeWidth: 1.5,
-  }
-  return { stroke: '#60a5fa', strokeWidth: 1.5 }
+
+// Colors matching the design exactly
+const EDGE_STYLES = {
+  publishes:  { stroke: '#2dd4bf', strokeWidth: 2 },                          // teal  — feeds → tp
+  subscribes: { stroke: '#818cf8', strokeWidth: 2 },                          // indigo — tp → rdb/wdb
+  hdb:        { stroke: '#fbbf24', strokeWidth: 2, strokeDasharray: '7 4' }, // yellow dashed — wdb → hdb
+}
+const MARKER_COLORS = {
+  publishes:  '#2dd4bf',
+  subscribes: '#818cf8',
+  hdb:        '#fbbf24',
 }
 
 export default function StackCanvas() {
   const { stacks, activeStack, statuses, selectedProc, setSelectedProc } = useControl()
-  const { setNodeRef } = useDroppable({ id: 'canvas' })
+
+  // ✅ Drop target wraps the whole canvas — not inside React Flow
+  const { setNodeRef, isOver } = useDroppable({ id: 'canvas' })
 
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
@@ -41,12 +46,12 @@ export default function StackCanvas() {
       source: e.source,
       target: e.target,
       animated: false,
-      style: edgeStyle(e.edgeType),
+      style: EDGE_STYLES[e.edgeType],
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: e.edgeType === 'hdb' ? '#a78bfa' : '#60a5fa',
-        width: 18,
-        height: 18,
+        color: MARKER_COLORS[e.edgeType],
+        width: 16,
+        height: 16,
       },
     }))
   }, [stack])
@@ -58,7 +63,9 @@ export default function StackCanvas() {
   const onPaneClick = useCallback(() => setSelectedProc(null), [setSelectedProc])
 
   return (
-    <div ref={setNodeRef} className="flex-1 bg-[#0d1117] relative">
+    // ✅ setNodeRef on the outer wrapper — React Flow is a child, not the drop target
+    <div ref={setNodeRef} className={`flex-1 relative transition-colors
+      ${isOver ? 'bg-[#0d1e30]' : 'bg-[#080e18]'}`}>
       <ReactFlow
         nodes={nodes.map(n => ({ ...n, selected: n.id === selectedProc }))}
         edges={edges}
@@ -68,21 +75,29 @@ export default function StackCanvas() {
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={{ padding: 0.25 }}
+        fitViewOptions={{ padding: 0.3 }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1f2937" />
+        <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="#1a2535" />
         <Controls
           showInteractive={false}
-          className="!bg-[#111827] !border-white/10 !shadow-none [&>button]:!bg-[#111827] [&>button]:!border-white/10 [&>button]:!text-zinc-400 [&>button:hover]:!bg-white/10"
+          className="!bg-[#0f2236] !border-[#1a3a52] !shadow-none [&>button]:!bg-[#0f2236] [&>button]:!border-[#1a3a52] [&>button]:!text-zinc-400 [&>button:hover]:!bg-[#132b42]"
         />
       </ReactFlow>
 
-      {/* Keyboard hint when proc selected */}
+      {/* Drop hint overlay */}
+      {isOver && (
+        <div className="absolute inset-0 pointer-events-none z-10 border-2 border-dashed border-blue-500/40 rounded-lg m-2 flex items-center justify-center">
+          <span className="text-blue-400/60 text-sm font-medium bg-[#080e18]/80 px-4 py-2 rounded-lg">
+            Drop to add process
+          </span>
+        </div>
+      )}
+
       {selectedProc && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#111827]/90 border border-white/10 rounded-full px-4 py-1.5 text-xs text-zinc-400 flex gap-4 backdrop-blur-sm">
-          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-white font-mono">U</kbd> start</span>
-          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-white font-mono">D</kbd> stop</span>
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#0f2236]/95 border border-[#1a3a52] rounded-full px-5 py-2 text-xs text-zinc-400 flex gap-4 backdrop-blur-sm">
+          <span><kbd className="bg-[#1a3a52] px-1.5 py-0.5 rounded text-white font-mono">U</kbd> start</span>
+          <span><kbd className="bg-[#1a3a52] px-1.5 py-0.5 rounded text-white font-mono">D</kbd> stop</span>
         </div>
       )}
     </div>
