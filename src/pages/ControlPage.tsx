@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
   type DragEndEvent,
@@ -12,17 +12,7 @@ import StackCanvas    from '../components/control/StackCanvas'
 import ProcessTable   from '../components/control/ProcessTable'
 import JsonPanel      from '../components/control/JsonPanel'
 import LogsPanel      from '../components/control/LogsPanel'
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center" onClick={onClose}>
-      <div className="bg-[#111827] border border-white/10 rounded-xl p-6 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <h2 className="text-white font-semibold text-sm mb-4">{title}</h2>
-        {children}
-      </div>
-    </div>
-  )
-}
+import { AddStackModal, CloneStackModal, DeleteStackModal } from '../components/control/StackModals'
 
 export default function ControlPage() {
   const {
@@ -31,15 +21,27 @@ export default function ControlPage() {
     viewMode, setViewMode,
     addStack, cloneStack, deleteStack, saveStack,
     startAll, stopAll, startProcess, stopProcess,
+    statuses,
   } = useControl()
 
   const [showMenu, setShowMenu]     = useState(false)
   const [showAdd, setShowAdd]       = useState(false)
+  const [showClone, setShowClone]   = useState(false)
   const [showDelete, setShowDelete] = useState(false)
-  const [newName, setNewName]       = useState('')
   const [activeDrag, setActiveDrag] = useState<string | null>(null)
 
-  const stackNames = Object.keys(stacks)
+  const stackNames   = Object.keys(stacks)
+  const stack        = stacks[activeStack]
+  const procNames    = Object.keys(stack?.processes ?? {})
+  const stackStatuses = statuses[activeStack] ?? {}
+
+  // Disable Start all if every process is running; Stop all if every process is stopped
+  const allRunning = useMemo(() =>
+    procNames.length > 0 && procNames.every(p => stackStatuses[p] === 'running'),
+    [procNames, stackStatuses])
+  const allStopped = useMemo(() =>
+    procNames.length > 0 && procNames.every(p => !stackStatuses[p] || stackStatuses[p] === 'stopped'),
+    [procNames, stackStatuses])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -72,11 +74,8 @@ export default function ControlPage() {
     saveStack(activeStack, updated)
   }, [stacks, activeStack, saveStack])
 
-  const handleAddStack = () => {
-    if (!newName.trim()) return
-    addStack(newName.trim(), { description: '', base_port: 9000, processes: {} })
-    setNewName('')
-    setShowAdd(false)
+  const handleAddStack = (name: string, description: string, basePort: number) => {
+    addStack(name, { description, base_port: basePort, processes: {} })
   }
 
   return (
@@ -87,40 +86,42 @@ export default function ControlPage() {
     >
       <div className="flex flex-col h-full overflow-hidden">
 
-        {/* Top bar */}
-        <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-[#0f1117]">
-          <h1 className="text-white font-bold text-xl mr-2">Stacks</h1>
+        {/* ── Top bar ───────────────────────────────────────────────── */}
+        <div className="shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-white/10 bg-[#0f1117] flex-wrap">
 
+          {/* View toggle */}
           <button onClick={() => setViewMode(viewMode === 'graph' ? 'table' : 'graph')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-semibold text-sm transition-all
-              border-blue-500 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20">
-            {viewMode === 'graph' ? <><List size={15} /> Table view</> : <><Share2 size={15} /> Graph view</>}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-medium text-sm transition-all
+              border-[#3b82f6] text-[#3b82f6] bg-[#3b82f6]/10 hover:bg-[#3b82f6]/20 shrink-0">
+            {viewMode === 'graph' ? <><List size={14} /> Table view</> : <><Share2 size={14} /> Graph view</>}
           </button>
 
-          <div className="flex items-center gap-1 mx-2 relative">
+          {/* Stack tabs */}
+          <div className="flex items-center gap-1 relative">
             {stackNames.map(name => (
               <button key={name} onClick={() => { setActiveStack(name); setSelectedProc(null) }}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium transition-colors
+                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors
                   ${activeStack === name
-                    ? 'bg-zinc-700 text-white border border-white/15'
+                    ? 'bg-zinc-700/80 text-white border border-white/15'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
                 {name}
                 {activeStack === name && (
                   <span onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
                     className="text-zinc-400 hover:text-white ml-0.5 cursor-pointer">
-                    <MoreHorizontal size={13} />
+                    <MoreHorizontal size={12} />
                   </span>
                 )}
               </button>
             ))}
             <button onClick={() => setShowAdd(true)}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5">
-              <Plus size={14} />
+              className="w-6 h-6 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5">
+              <Plus size={13} />
             </button>
+
             {showMenu && (
               <div className="absolute top-9 left-0 z-50 bg-[#1a2233] border border-white/10 rounded-lg shadow-xl w-40"
                 onMouseLeave={() => setShowMenu(false)}>
-                <button onClick={() => { cloneStack(activeStack, `${activeStack}_copy`); setShowMenu(false) }}
+                <button onClick={() => { setShowClone(true); setShowMenu(false) }}
                   className="w-full text-left px-4 py-2.5 text-xs text-zinc-300 hover:bg-white/5">Clone stack</button>
                 <button onClick={() => { setShowDelete(true); setShowMenu(false) }}
                   className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-white/5">Delete stack</button>
@@ -128,24 +129,36 @@ export default function ControlPage() {
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
-            <button onClick={() => startAll(activeStack)}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-green-500 text-green-400
-                text-sm font-bold hover:bg-green-500/10 transition-all">
-              <Play size={13} className="fill-green-400" /> Start all
+          {/* Spacer pushes Start/Stop all to the right */}
+          <div className="flex-1" />
+
+          {/* Start / Stop all — flush against JSON panel */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => startAll(activeStack)}
+              disabled={allRunning}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium transition-all
+                ${allRunning
+                  ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                  : 'border-green-500/70 text-green-400 hover:bg-green-500/10'}`}>
+              <Play size={11} className={allRunning ? 'fill-zinc-600' : 'fill-green-400'} />
+              Start all
             </button>
-            <button onClick={() => stopAll(activeStack)}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl border-2 border-orange-500 text-orange-400
-                text-sm font-bold hover:bg-orange-500/10 transition-all">
-              <Square size={13} className="fill-orange-400" /> Stop all
+            <button
+              onClick={() => stopAll(activeStack)}
+              disabled={allStopped}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium transition-all
+                ${allStopped
+                  ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                  : 'border-orange-500/70 text-orange-400 hover:bg-orange-500/10'}`}>
+              <Square size={11} className={allStopped ? 'fill-zinc-600' : 'fill-orange-400'} />
+              Stop all
             </button>
           </div>
         </div>
 
-        {/* Body: left col + JSON panel */}
+        {/* ── Body ─────────────────────────────────────────────────── */}
         <div className="flex flex-1 min-h-0">
-
-          {/* Left column: canvas area + logs */}
           <div className="flex flex-col flex-1 min-h-0">
             <div className="flex flex-1 min-h-0">
               <ProcessPalette />
@@ -153,45 +166,29 @@ export default function ControlPage() {
             </div>
             <LogsPanel />
           </div>
-
-          {/* JSON panel — right, full body height */}
           <JsonPanel />
         </div>
       </div>
 
       <DragOverlay>
         {activeDrag && (
-          <div className="px-3 py-2 rounded-md bg-blue-600/20 border border-blue-500 text-blue-300 text-xs font-mono shadow-lg">
+          <div className="px-3 py-2 rounded-md bg-[#3b82f6]/20 border border-[#3b82f6] text-[#3b82f6] text-xs font-mono shadow-lg">
             {activeDrag}
           </div>
         )}
       </DragOverlay>
 
       {showAdd && (
-        <Modal title="Add Stack" onClose={() => setShowAdd(false)}>
-          <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddStack()}
-            placeholder="Stack name"
-            className="w-full bg-[#0d1117] border border-white/10 rounded-md px-3 py-2 text-sm text-white outline-none focus:border-blue-500 mb-4" />
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowAdd(false)}
-              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10">Cancel</button>
-            <button onClick={handleAddStack}
-              className="px-4 py-2 text-xs rounded-md bg-blue-600 hover:bg-blue-500 text-white">Create</button>
-          </div>
-        </Modal>
+        <AddStackModal existingNames={stackNames} onAdd={handleAddStack} onClose={() => setShowAdd(false)} />
       )}
-
+      {showClone && (
+        <CloneStackModal sourceName={activeStack} existingNames={stackNames}
+          onClone={name => cloneStack(activeStack, name)} onClose={() => setShowClone(false)} />
+      )}
       {showDelete && (
-        <Modal title={`Delete "${activeStack}"?`} onClose={() => setShowDelete(false)}>
-          <p className="text-zinc-400 text-xs mb-5">This action cannot be undone.</p>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowDelete(false)}
-              className="px-4 py-2 text-xs rounded-md bg-white/5 text-zinc-300 hover:bg-white/10">Cancel</button>
-            <button onClick={() => { deleteStack(activeStack); setShowDelete(false) }}
-              className="px-4 py-2 text-xs rounded-md bg-red-700 hover:bg-red-600 text-white">Delete</button>
-          </div>
-        </Modal>
+        <DeleteStackModal stackName={activeStack}
+          onDelete={() => { deleteStack(activeStack); setShowDelete(false) }}
+          onClose={() => setShowDelete(false)} />
       )}
     </DndContext>
   )

@@ -67,7 +67,9 @@ export default function StackCanvas() {
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.15, minZoom: 0.8, maxZoom: 1.5 }}
+        minZoom={0.3}
+        maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="#1a2535" />
