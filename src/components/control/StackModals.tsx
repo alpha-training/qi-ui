@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Copy, Trash2, Plus, AlertTriangle } from 'lucide-react'
+import { X, Copy, Trash2, Plus, AlertTriangle, Pencil } from 'lucide-react'
 
 // ─── Shared modal shell ───────────────────────────────────────────────────────
 
@@ -49,16 +49,17 @@ function Modal({
 // ─── Shared input ─────────────────────────────────────────────────────────────
 
 function ModalInput({
-  value, onChange, onEnter, placeholder, error,
+  value, onChange, onEnter, placeholder, error, autoFocus = false,
 }: {
   value: string
   onChange: (v: string) => void
   onEnter?: () => void
   placeholder?: string
   error?: string | null
+  autoFocus?: boolean
 }) {
   const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => { ref.current?.focus() }, [])
+  useEffect(() => { if (autoFocus) ref.current?.focus() }, [autoFocus])
 
   return (
     <div className="space-y-1.5">
@@ -68,7 +69,7 @@ function ModalInput({
         onChange={e => onChange(e.target.value)}
         onKeyDown={e => e.key === 'Enter' && onEnter?.()}
         placeholder={placeholder}
-        className={`w-full bg-[#06111e] border rounded-xl px-4 py-2.5 text-sm text-white
+        className={`w-full bg-[#06111e] border rounded-lg px-4 py-2.5 text-sm text-white
           outline-none transition-colors placeholder:text-zinc-600
           ${error ? 'border-red-500/60 focus:border-red-500' : 'border-white/10 focus:border-blue-500'}`}
       />
@@ -91,12 +92,12 @@ function ModalFooter({
   return (
     <div className="flex gap-3 justify-end pt-2">
       <button onClick={onCancel}
-        className="px-5 py-2 rounded-xl text-sm font-semibold border border-white/15 text-zinc-300
+        className="px-5 py-2 rounded-lg text-sm font-semibold border border-white/15 text-zinc-300
           hover:border-white/30 hover:text-white transition-all">
         Cancel
       </button>
       <button onClick={onConfirm} disabled={disabled}
-        className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all
+        className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all
           disabled:opacity-40 disabled:cursor-not-allowed
           ${confirmVariant === 'danger'
             ? 'bg-red-600 hover:bg-red-500 text-white'
@@ -144,7 +145,7 @@ export function AddStackModal({
         <div>
           <label className="text-xs text-zinc-400 font-medium mb-1.5 block">Stack name *</label>
           <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
-            onEnter={handleConfirm} placeholder="e.g. Dev3" error={error} />
+            onEnter={handleConfirm} placeholder="e.g. Dev3" error={error} autoFocus />
         </div>
         <div>
           <label className="text-xs text-zinc-400 font-medium mb-1.5 block">Description</label>
@@ -197,6 +198,41 @@ export function CloneStackModal({
   )
 }
 
+// ─── Rename Stack Modal ───────────────────────────────────────────────────────
+
+export function RenameStackModal({
+  stackName, existingNames, onRename, onClose,
+}: {
+  stackName: string
+  existingNames: string[]
+  onRename: (newName: string) => void
+  onClose: () => void
+}) {
+  const [name, setName]   = useState(stackName)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleConfirm = () => {
+    const trimmed = name.trim()
+    if (!trimmed) { setError('Name is required'); return }
+    if (trimmed === stackName) { onClose(); return }
+    if (existingNames.filter(n => n !== stackName).includes(trimmed)) {
+      setError(`"${trimmed}" already exists`); return
+    }
+    onRename(trimmed)
+    onClose()
+  }
+
+  return (
+    <Modal title={`Rename "${stackName}"`} icon={<Pencil size={15} className="text-blue-400" />} onClose={onClose}>
+      <div className="space-y-4">
+        <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
+          onEnter={handleConfirm} placeholder="New name" error={error} />
+        <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Rename" />
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Delete Stack Modal ───────────────────────────────────────────────────────
 
 export function DeleteStackModal({
@@ -216,7 +252,7 @@ export function DeleteStackModal({
       onClose={onClose}
     >
       <div className="space-y-4">
-        <div className="flex gap-3 p-3 bg-red-900/20 border border-red-800/40 rounded-xl">
+        <div className="flex gap-3 p-3 bg-red-900/20 border border-red-800/40 rounded-lg">
           <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
           <p className="text-sm text-red-300">
             This will permanently delete <span className="font-bold text-white">{stackName}</span> and

@@ -3,6 +3,7 @@ import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useControl } from '../../context/ControlContext'
 
 const editorTheme = EditorView.theme({
@@ -13,16 +14,17 @@ const editorTheme = EditorView.theme({
   '.cm-focused': { outline: 'none' },
 }, { dark: true })
 
-type JsonStatus = 'valid' | 'invalid' | 'unsaved'
-
 export default function JsonPanel() {
-  const { stacks, activeStack, selectedProc, saveStack, updateStackLocal } = useControl()
-  const editorRef  = useRef<HTMLDivElement>(null)
-  const viewRef    = useRef<EditorView | null>(null)
-  const [error, setError]       = useState<string | null>(null)
-  const [isDirty, setIsDirty]   = useState(false)
-  const [saving, setSaving]     = useState(false)
-  const [status, setStatus]     = useState<JsonStatus>('valid')
+  const { stacks, activeStack, selectedProc, setSelectedProc, saveStack, updateStackLocal, jsonStatus, setJsonStatus } = useControl()
+  const editorRef         = useRef<HTMLDivElement>(null)
+  const viewRef           = useRef<EditorView | null>(null)
+  const isProgrammaticRef = useRef(false)   // suppress listener during programmatic updates
+  const lastSyncedJsonRef = useRef('')      // last json we pushed into the editor
+  const [error, setError]         = useState<string | null>(null)
+  const [isDirty, setIsDirty]     = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [editName, setEditName]   = useState('')
 
   const stack = stacks[activeStack]
 
@@ -40,23 +42,25 @@ export default function JsonPanel() {
     if (editorKeyRef.current === editorKey) return
     editorKeyRef.current = editorKey
     viewRef.current?.destroy()
+    setEditingName(false)
 
     const updateListener = EditorView.updateListener.of(update => {
       if (!update.docChanged) return
+      if (isProgrammaticRef.current) return
       const text = update.state.doc.toString()
       setIsDirty(true)
       try {
         const parsed = JSON.parse(text)
         setError(null)
-        setStatus('unsaved')
+        setJsonStatus('unsaved')
         if (selectedProc) {
           updateStackLocal(activeStack, { ...stack, processes: { ...stack.processes, [selectedProc]: parsed } })
         } else {
           updateStackLocal(activeStack, parsed)
         }
-      } catch (e: any) {
-        setError(e.message)
-        setStatus('invalid')
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e))
+        setJsonStatus('invalid')
       }
     })
 
@@ -65,9 +69,10 @@ export default function JsonPanel() {
       extensions: [basicSetup, json(), oneDark, editorTheme, updateListener],
     })
     viewRef.current = new EditorView({ state, parent: editorRef.current })
+    lastSyncedJsonRef.current = initialJson
     setError(null)
     setIsDirty(false)
-    setStatus('valid')
+    setJsonStatus('valid')
 
     return () => {
       viewRef.current?.destroy()
@@ -75,6 +80,38 @@ export default function JsonPanel() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorKey])
+
+  // Sync editor when stack is modified externally (e.g. drag-drop adds a process)
+  // Only runs when the user isn't actively editing (isDirty = false)
+  useEffect(() => {
+    if (!viewRef.current || isDirty) return
+    if (lastSyncedJsonRef.current === initialJson) return
+    lastSyncedJsonRef.current = initialJson
+    isProgrammaticRef.current = true
+    viewRef.current.dispatch({
+      changes: { from: 0, to: viewRef.current.state.doc.length, insert: initialJson },
+    })
+    isProgrammaticRef.current = false
+  }, [initialJson, isDirty])
+
+  const commitRename = useCallback(() => {
+    const trimmed = editName.trim()
+    setEditingName(false)
+    if (!trimmed || trimmed === selectedProc || !selectedProc || !stack) return
+    const procs = { ...stack.processes }
+    procs[trimmed] = procs[selectedProc]
+    delete procs[selectedProc]
+    saveStack(activeStack, { ...stack, processes: procs })
+    setSelectedProc(trimmed)
+  }, [editName, selectedProc, stack, activeStack, saveStack, setSelectedProc])
+
+  const handleDeleteProc = useCallback(() => {
+    if (!selectedProc || !stack) return
+    const procs = { ...stack.processes }
+    delete procs[selectedProc]
+    saveStack(activeStack, { ...stack, processes: procs })
+    setSelectedProc(null)
+  }, [selectedProc, stack, activeStack, saveStack, setSelectedProc])
 
   const handleSave = useCallback(async () => {
     const text = viewRef.current?.state.doc.toString() ?? ''
@@ -88,14 +125,14 @@ export default function JsonPanel() {
       }
       setIsDirty(false)
       setError(null)
-      setStatus('valid')
-    } catch (e: any) {
-      setError(e.message)
-      setStatus('invalid')
+      setJsonStatus('valid')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+      setJsonStatus('invalid')
     } finally {
       setSaving(false)
     }
-  }, [activeStack, selectedProc, stack, saveStack])
+  }, [activeStack, selectedProc, stack, saveStack, setJsonStatus])
 
   const handleCancel = useCallback(() => {
     if (!viewRef.current) return
@@ -105,27 +142,52 @@ export default function JsonPanel() {
     if (stack) updateStackLocal(activeStack, stacks[activeStack])
     setError(null)
     setIsDirty(false)
-    setStatus('valid')
-  }, [initialJson, activeStack, stack, stacks, updateStackLocal])
-
-  const statusConfig = {
-    valid:   { label: 'Valid',           dot: 'bg-green-400 shadow-[0_0_6px_#4ade80]', text: 'text-green-400' },
-    unsaved: { label: 'Unsaved changes', dot: 'bg-amber-400 shadow-[0_0_6px_#fbbf24]', text: 'text-amber-400' },
-    invalid: { label: 'Invalid',         dot: 'bg-red-400 shadow-[0_0_6px_#f87171]',   text: 'text-red-400'   },
-  }[status]
+    setJsonStatus('valid')
+  }, [initialJson, activeStack, stack, stacks, updateStackLocal, setJsonStatus])
 
   return (
     <div className="w-80 shrink-0 flex flex-col bg-[#0a1628] border-l border-white/10"
       style={{ height: '100%', overflow: 'hidden' }}>
 
-      {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-white/10">
-        <span className="text-base font-bold text-white">JSON Config</span>
-        <span className={`flex items-center gap-2 text-xs font-semibold ${statusConfig.text}`}>
-          <span className={`w-2 h-2 rounded-full shrink-0 ${statusConfig.dot}`} />
-          {statusConfig.label}
-        </span>
-      </div>
+      {/* Process name bar — editable name + delete */}
+      {selectedProc && (
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-white/10">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {editingName ? (
+              <input
+                autoFocus
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitRename()
+                  if (e.key === 'Escape') setEditingName(false)
+                }}
+                onBlur={commitRename}
+                className="flex-1 min-w-0 bg-white/5 border border-blue-500/50 rounded px-2 py-0.5
+                  text-sm text-white outline-none font-medium"
+              />
+            ) : (
+              <>
+                <span className="text-sm font-medium text-white truncate">{selectedProc}</span>
+                <button
+                  onClick={() => { setEditName(selectedProc); setEditingName(true) }}
+                  className="text-zinc-400 hover:text-white transition-colors shrink-0"
+                  title="Rename process"
+                >
+                  <Pencil size={12} />
+                </button>
+              </>
+            )}
+          </div>
+          <button
+            onClick={handleDeleteProc}
+            className="text-zinc-400 hover:text-red-400 transition-colors shrink-0"
+            title="Delete process"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Error bar */}
       {error && (
@@ -134,17 +196,10 @@ export default function JsonPanel() {
         </div>
       )}
 
-      {/* Context label */}
-      {selectedProc && (
-        <div className="shrink-0 px-5 py-2 border-b border-white/10 text-xs text-zinc-500">
-          Showing: <span className="text-[#3b82f6] font-medium">{selectedProc}</span>
-        </div>
-      )}
-
-      {/* Editor — only scrollable region */}
+      {/* Editor */}
       <div ref={editorRef} className="flex-1 min-h-0 overflow-auto" />
 
-      {/* Footer — always pinned */}
+      {/* Footer */}
       <div className="shrink-0 flex items-center justify-end gap-3 px-5 py-4 border-t border-white/10">
         <button onClick={handleCancel} disabled={!isDirty}
           className="px-5 py-2 rounded-lg text-sm font-medium border border-white/20 text-zinc-300
@@ -152,9 +207,9 @@ export default function JsonPanel() {
             disabled:opacity-30 disabled:cursor-not-allowed">
           Cancel
         </button>
-        <button onClick={handleSave} disabled={status === 'invalid' || saving}
+        <button onClick={handleSave} disabled={jsonStatus === 'invalid' || saving}
           className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium border transition-all
-            ${status === 'invalid' || saving
+            ${jsonStatus === 'invalid' || saving
               ? 'border-white/10 text-zinc-500 cursor-not-allowed'
               : 'border-[#3b82f6] text-[#3b82f6] hover:bg-[#3b82f6]/10'}`}>
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"

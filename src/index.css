@@ -13,4 +13,18 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #1e3a52; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #2a5070; }
+
+  /* Tab strip scrollbar — grey, sized to be clickable */
+  .tab-scroll::-webkit-scrollbar { height: 4px; }
+  .tab-scroll::-webkit-scrollbar-track { background: #1f1f23; border-radius: 4px; }
+  .tab-scroll::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; cursor: pointer; }
+  .tab-scroll::-webkit-scrollbar-thumb:hover { background: #71717a; }
+
+}
+
+/* ReactFlow pane: arrow cursor instead of grab — must be outside @layer to beat ReactFlow's CSS */
+.react-flow__pane,
+.react-flow__pane.draggable,
+.react-flow__pane.dragging {
+  cursor: default !important;
 }

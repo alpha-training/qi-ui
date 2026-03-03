@@ -4,14 +4,17 @@ import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
 export default function LogsPanel() {
-  const { logs, stacks, activeStack } = useControl()
-  const [activeTab, setActiveTab] = useState<string>('All')
+  const { logs, stacks, activeStack, selectedProc } = useControl()
+  const [manualTab, setManualTab] = useState<string>('All')
   const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, warn: true })
   const [autoScroll, setAutoScroll] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const procNames = Object.keys(stacks[activeStack]?.processes ?? {})
   const tabs = ['All', ...procNames]
+
+  // Derive active tab from selectedProc — no useEffect needed
+  const activeTab = selectedProc && procNames.includes(selectedProc) ? selectedProc : manualTab
 
   const filtered = logs.filter(l => {
     const tabMatch = activeTab === 'All' || l.process === activeTab
@@ -31,7 +34,7 @@ export default function LogsPanel() {
         <span className="text-white font-bold text-lg shrink-0">Logs:</span>
         <div className="flex items-center gap-3 flex-wrap">
           {tabs.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
+            <button key={tab} onClick={() => setManualTab(tab)}
               className={`text-xs font-medium transition-colors
                 ${activeTab === tab
                   ? 'text-[#3b82f6] underline underline-offset-4 decoration-[#3b82f6]'

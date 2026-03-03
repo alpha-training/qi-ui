@@ -87,12 +87,7 @@ export default function StackCanvas() {
         </div>
       )}
 
-      {selectedProc && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#0f2236]/95 border border-[#1a3a52] rounded-full px-5 py-2 text-xs text-zinc-400 flex gap-4 backdrop-blur-sm">
-          <span><kbd className="bg-[#1a3a52] px-1.5 py-0.5 rounded text-white font-mono">U</kbd> start</span>
-          <span><kbd className="bg-[#1a3a52] px-1.5 py-0.5 rounded text-white font-mono">D</kbd> stop</span>
-        </div>
-      )}
+      {/* U/D keyboard hint hidden for now */}
     </div>
   )
 }

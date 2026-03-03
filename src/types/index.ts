@@ -60,8 +60,23 @@ export interface Process {
     ts: string
   }
   
-  // ─── View ─────────────────────────────────────────────────────────────────────
-  
+  // ─── Connection ───────────────────────────────────────────────────────────────
+
+export interface Connection {
+  id: string
+  host: string
+  port: number
+  name?: string
+  username?: string
+  password?: string
+}
+
+// ─── JSON Editor ──────────────────────────────────────────────────────────────
+
+export type JsonStatus = 'valid' | 'invalid' | 'unsaved'
+
+// ─── View ─────────────────────────────────────────────────────────────────────
+
   export type ViewMode = 'graph' | 'table'
   
   export interface StackTab {
