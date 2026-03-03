@@ -3,10 +3,6 @@ import { PKG_LAYER, LAYOUT } from '../config'
 
 // ─── Auto-naming ──────────────────────────────────────────────────────────────
 
-/**
- * Returns the next available process name for a given package.
- * e.g. if rdb1 exists, returns rdb2.
- */
 export function autoName(pkg: string, processes: Record<string, Process>): string {
   let i = 1
   while (processes[`${pkg}${i}`]) i++
@@ -34,10 +30,9 @@ export function buildRuntimeList(
   }))
 }
 
-// ─── Graph derivation ─────────────────────────────────────────────────────────
+// ─── Graph layout ─────────────────────────────────────────────────────────────
 
 function layerNodes(processes: Record<string, Process>): Record<string, { x: number; y: number }> {
-  // Group names by layer
   const layers: Record<string, string[]> = { feed: [], ticker: [], storage: [], db: [] }
   for (const [name, p] of Object.entries(processes)) {
     const layer = PKG_LAYER[p.pkg] ?? 'storage'
@@ -57,6 +52,8 @@ function layerNodes(processes: Record<string, Process>): Record<string, { x: num
   }
   return positions
 }
+
+// ─── Graph derivation ─────────────────────────────────────────────────────────
 
 export function deriveGraphNodes(
   stack: Stack,
@@ -90,14 +87,8 @@ export function deriveGraphEdges(stack: Stack): GraphEdge[] {
   }
 
   for (const [name, proc] of Object.entries(stack.processes)) {
-    // publishes_to: this process → targets (e.g. binance1 → tp1)
     proc.publishes_to?.forEach(t => add(name, t, 'publishes'))
-
-    // subscribes_to: sources → this process (e.g. tp1 → rdb1)
-    // The key is the source name, value is the topic
     Object.keys(proc.subscribes_to ?? {}).forEach(src => add(src, name, 'subscribes'))
-
-    // hdb: this process stores into hdb (e.g. wdb1 → hdb1), dashed
     if (proc.hdb) add(name, proc.hdb, 'hdb')
   }
 

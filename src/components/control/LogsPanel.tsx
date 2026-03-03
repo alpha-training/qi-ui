@@ -4,14 +4,17 @@ import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
 export default function LogsPanel() {
-  const { logs, stacks, activeStack } = useControl()
-  const [activeTab, setActiveTab] = useState<string>('All')
+  const { logs, stacks, activeStack, selectedProc } = useControl()
+  const [manualTab, setManualTab] = useState<string>('All')
   const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, warn: true })
   const [autoScroll, setAutoScroll] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const procNames = Object.keys(stacks[activeStack]?.processes ?? {})
   const tabs = ['All', ...procNames]
+
+  // Derive active tab from selectedProc — no useEffect needed
+  const activeTab = selectedProc && procNames.includes(selectedProc) ? selectedProc : manualTab
 
   const filtered = logs.filter(l => {
     const tabMatch = activeTab === 'All' || l.process === activeTab
@@ -24,69 +27,70 @@ export default function LogsPanel() {
   }, [filtered.length, autoScroll])
 
   return (
-    <div className="h-64 border-t border-white/10 bg-[#0d1117] flex flex-col shrink-0">
-      {/* Header */}
-      <div className="flex items-center gap-4 px-5 py-2.5 flex-wrap">
-        <span className="text-white font-bold text-lg">Logs:</span>
+    <div className="h-60 border-t border-white/10 bg-[#0d1117] flex flex-col shrink-0">
 
-        {/* Tabs */}
-        <div className="flex items-center gap-4">
+      {/* Row 1: "Logs:" label + process tabs */}
+      <div className="flex items-center gap-3 px-5 pt-3 pb-1 flex-wrap">
+        <span className="text-white font-bold text-lg shrink-0">Logs:</span>
+        <div className="flex items-center gap-3 flex-wrap">
           {tabs.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`text-sm transition-colors font-medium
+            <button key={tab} onClick={() => setManualTab(tab)}
+              className={`text-xs font-medium transition-colors
                 ${activeTab === tab
-                  ? 'text-blue-400 underline underline-offset-4 decoration-blue-400'
+                  ? 'text-[#3b82f6] underline underline-offset-4 decoration-[#3b82f6]'
                   : 'text-zinc-500 hover:text-zinc-300'
                 }`}>
               {tab}
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-4 ml-1">
+      {/* Row 2: filters left, autoscroll right */}
+      <div className="flex items-center justify-between px-5 pb-2">
+        <div className="flex items-center gap-4">
           {(['info', 'error'] as LogLevel[]).map(level => (
             <label key={level} className="flex items-center gap-2 cursor-pointer">
-              <div onClick={() => setFilters(f => ({ ...f, [level]: !f[level] }))}
-                className={`w-4 h-4 rounded flex items-center justify-center border transition-colors cursor-pointer
-                  ${filters[level] ? 'bg-blue-500 border-blue-500' : 'bg-transparent border-zinc-600 hover:border-zinc-400'}`}>
+              <div
+                onClick={() => setFilters(f => ({ ...f, [level]: !f[level] }))}
+                className={`w-4 h-4 rounded flex items-center justify-center border transition-colors cursor-pointer shrink-0
+                  ${filters[level] ? 'bg-[#3b82f6] border-[#3b82f6]' : 'bg-transparent border-zinc-600 hover:border-zinc-400'}`}>
                 {filters[level] && (
-                  <svg viewBox="0 0 10 8" className="w-2.5 h-2.5 fill-white">
-                    <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                  <svg viewBox="0 0 10 8" className="w-2.5 h-2.5">
+                    <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" />
                   </svg>
                 )}
               </div>
-              <span className="text-sm text-zinc-400">{level}</span>
+              <span className="text-xs text-zinc-400">{level}</span>
             </label>
           ))}
         </div>
 
-        {/* Auto-scroll + refresh */}
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-sm text-zinc-500">Auto-scroll</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-zinc-500">Auto-scroll</span>
           <button onClick={() => setAutoScroll(v => !v)}
-            className={`w-11 h-6 rounded-full relative transition-colors
-              ${autoScroll ? 'bg-blue-600' : 'bg-zinc-700'}`}>
-            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all
-              ${autoScroll ? 'right-1' : 'left-1'}`} />
+            className={`w-10 h-5 rounded-full relative transition-colors shrink-0
+              ${autoScroll ? 'bg-[#3b82f6]' : 'bg-zinc-700'}`}>
+            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all
+              ${autoScroll ? 'right-0.5' : 'left-0.5'}`} />
           </button>
-          <button className="text-zinc-500 hover:text-zinc-300 transition-colors">
-            <RefreshCw size={14} />
+          <button onClick={() => {}} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+            <RefreshCw size={13} />
           </button>
         </div>
       </div>
 
-      {/* Terminal box */}
-      <div className="flex-1 mx-4 mb-4 overflow-hidden rounded-lg border border-white/10 bg-[#080d13]">
-        <div className="h-full overflow-y-auto px-4 py-3 font-mono text-xs space-y-0.5">
+      {/* Terminal log box */}
+      <div className="flex-1 mx-4 mb-3 overflow-hidden rounded-lg border border-white/10 bg-[#060b11]">
+        <div className="h-full overflow-y-auto px-4 py-2 font-mono text-xs">
           {filtered.length === 0 && (
             <span className="text-zinc-600">No log entries.</span>
           )}
           {filtered.map(l => (
-            <div key={l.id} className="flex gap-2 leading-6">
-              <span className="text-zinc-500 shrink-0">[{l.ts}]</span>
+            <div key={l.id} className="flex gap-2 leading-5">
+              <span className="text-zinc-600 shrink-0">[{l.ts}]</span>
               <span className={`shrink-0 font-bold
-                ${l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-yellow-400' : 'text-blue-400'}`}>
+                ${l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-yellow-400' : 'text-[#3b82f6]'}`}>
                 [{l.level.toUpperCase()}]
               </span>
               <span className={l.level === 'error' ? 'text-red-300' : 'text-zinc-300'}>{l.msg}</span>
