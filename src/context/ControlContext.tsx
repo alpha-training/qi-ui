@@ -111,6 +111,11 @@ import {
         return ns
       })
       setStackOrder(o => o.map(n => n === oldName ? newName : n))
+      setStatuses(s => {
+        const ns = { ...s, [newName]: s[oldName] ?? {} }
+        delete ns[oldName]
+        return ns
+      })
       if (activeStack === oldName) setActiveStack(newName)
     }, [stacks, activeStack])
 

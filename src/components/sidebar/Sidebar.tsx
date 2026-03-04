@@ -2,25 +2,29 @@ import {
   LayoutGrid, TrendingUp, BarChart2, Database,
   ShoppingCart, AlertTriangle, ScrollText, Settings,
 } from 'lucide-react'
+import { useTheme } from '../../context/ThemeContext'
 
 const NAV = [
-  { icon: LayoutGrid, label: 'Control',  active: true  },
-  { icon: TrendingUp, label: 'Strats',   active: false },
-  { icon: BarChart2,  label: 'Charts',   active: false },
-  { icon: Database,   label: 'Data',     active: false },
-  { icon: ShoppingCart,label:'Orders',   active: false },
-  { icon: AlertTriangle,label:'Risk',    active: false },
-  { icon: ScrollText, label: 'Logs',     active: false },
-  { icon: Settings,   label: 'Settings', active: false },
+  { icon: LayoutGrid,    label: 'Control',  active: true  },
+  { icon: TrendingUp,    label: 'Strats',   active: false },
+  { icon: BarChart2,     label: 'Charts',   active: false },
+  { icon: Database,      label: 'Data',     active: false },
+  { icon: ShoppingCart,  label: 'Orders',   active: false },
+  { icon: AlertTriangle, label: 'Risk',     active: false },
+  { icon: ScrollText,    label: 'Logs',     active: false },
+  { icon: Settings,      label: 'Settings', active: false },
 ]
 
 export default function Sidebar() {
+  const { theme, toggleTheme } = useTheme()
+  const isLight = theme === 'light'
+
   return (
-    <aside className="w-40 bg-[#0f1117] border-r border-white/10 flex flex-col shrink-0">
+    <aside className="w-40 bg-[var(--bg-surface)] border-r border-[var(--border)] flex flex-col shrink-0">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-4 border-b border-white/10">
+      <div className="flex items-center gap-2 px-4 py-4 border-b border-[var(--border)]">
         <div className="w-7 h-7 rounded bg-blue-500 flex items-center justify-center text-white font-bold text-sm">α</div>
-        <span className="text-white font-semibold text-base tracking-wide">qi</span>
+        <span className="font-semibold text-base tracking-wide text-[var(--text-primary)]">qi</span>
       </div>
 
       {/* Nav */}
@@ -31,7 +35,7 @@ export default function Sidebar() {
             className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full text-left
               ${active
                 ? 'bg-[#3b82f6] text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover-md)]'
               }`}
           >
             <Icon size={16} />
@@ -40,12 +44,18 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Light mode toggle */}
-      <div className="px-4 py-4 border-t border-white/10 flex items-center gap-2">
-        <span className="text-zinc-500 text-xs">Light Mode</span>
-        <div className="ml-auto w-9 h-5 bg-blue-600 rounded-full relative cursor-pointer">
-          <div className="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow" />
-        </div>
+      {/* Light / Dark toggle */}
+      <div className="px-4 py-4 border-t border-[var(--border)] flex items-center gap-2">
+        <span className="text-[var(--text-dimmed)] text-xs">{isLight ? 'Light' : 'Dark'}</span>
+        <button
+          onClick={toggleTheme}
+          aria-label="Toggle theme"
+          className={`ml-auto w-9 h-5 rounded-full relative transition-colors
+            ${isLight ? 'bg-blue-500' : 'bg-[var(--bg-toggle-off)]'}`}
+        >
+          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all
+            ${isLight ? 'right-0.5' : 'left-0.5'}`} />
+        </button>
       </div>
     </aside>
   )

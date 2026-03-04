@@ -57,7 +57,7 @@ export default function StackCanvas() {
   const onPaneClick = useCallback(() => setSelectedProc(null), [setSelectedProc])
 
   return (
-    <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[#0d1e30]' : 'bg-[#080e18]'}`}>
+    <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[var(--bg-canvas-over)]' : 'bg-[var(--bg-canvas)]'}`}>
       <ReactFlow
         nodes={nodes.map(n => ({ ...n, selected: n.id === selectedProc }))}
         edges={edges}
@@ -72,16 +72,16 @@ export default function StackCanvas() {
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="#1a2535" />
+        <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="var(--dots-color)" />
         <Controls
           showInteractive={false}
-          className="!bg-[#0f2236] !border-[#1a3a52] !shadow-none [&>button]:!bg-[#0f2236] [&>button]:!border-[#1a3a52] [&>button]:!text-zinc-400 [&>button:hover]:!bg-[#132b42]"
+          className="!bg-[var(--bg-node)] !border-[var(--border-node)] !shadow-none [&>button]:!bg-[var(--bg-node)] [&>button]:!border-[var(--border-node)] [&>button]:!text-[var(--text-muted)] [&>button:hover]:!bg-[var(--bg-node-hover)]"
         />
       </ReactFlow>
 
       {isOver && (
         <div className="absolute inset-0 pointer-events-none z-10 border-2 border-dashed border-blue-500/40 rounded-lg m-2 flex items-center justify-center">
-          <span className="text-blue-400/60 text-sm font-medium bg-[#080e18]/80 px-4 py-2 rounded-lg">
+          <span className="text-blue-400/60 text-sm font-medium bg-[var(--bg-canvas)]/80 px-4 py-2 rounded-lg">
             Drop to add process
           </span>
         </div>

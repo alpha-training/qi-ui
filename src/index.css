@@ -11,15 +11,106 @@
   /* Scrollbar styling */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #1e3a52; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #2a5070; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
   /* Tab strip scrollbar — grey, sized to be clickable */
   .tab-scroll::-webkit-scrollbar { height: 4px; }
   .tab-scroll::-webkit-scrollbar-track { background: #1f1f23; border-radius: 4px; }
   .tab-scroll::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; cursor: pointer; }
   .tab-scroll::-webkit-scrollbar-thumb:hover { background: #71717a; }
+}
 
+/* ── Design tokens (dark default) ─────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-base:        #0d1117;
+  --bg-surface:     #0f1117;
+  --bg-canvas:      #080e18;
+  --bg-canvas-over: #0d1e30;
+  --bg-panel:       #0a1628;
+  --bg-node:        #0f2236;
+  --bg-node-hover:  #132b42;
+  --bg-terminal:    #060b11;
+  --bg-dropdown:    #1a2233;
+  --bg-modal:       #0d1929;
+  --bg-input:       #06111e;
+  --bg-hover:       rgba(255,255,255,0.03);
+  --bg-hover-md:    rgba(255,255,255,0.05);
+  --bg-tab-active:  rgba(63,63,70,0.8);
+  --bg-toggle-off:  #3f3f46;
+
+  /* Borders */
+  --border:            rgba(255,255,255,0.1);
+  --border-subtle:     rgba(255,255,255,0.05);
+  --border-tab-active: rgba(255,255,255,0.15);
+  --border-btn:        rgba(255,255,255,0.15);
+  --border-btn-hover:  rgba(255,255,255,0.3);
+  --border-node:       #1a3a52;
+  --border-node-hover: #2a5070;
+
+  /* Node chrome */
+  --node-handle:        #1e4060;
+  --node-handle-border: #2a5878;
+  --node-port-text:     #4a7a9b;
+  --dots-color:         #1a2535;
+
+  /* Text */
+  --text-primary:   #f4f4f5;
+  --text-secondary: #d4d4d8;
+  --text-muted:     #a1a1aa;
+  --text-dimmed:    #71717a;
+  --text-faint:     #52525b;
+
+  /* Scrollbars */
+  --scrollbar-thumb:       #1e3a52;
+  --scrollbar-thumb-hover: #2a5070;
+}
+
+/* ── Light mode overrides ───────────────────────────────────────── */
+:root.light {
+  /* Backgrounds */
+  --bg-base:        #f0f4f8;
+  --bg-surface:     #e8edf3;
+  --bg-canvas:      #dce8f5;
+  --bg-canvas-over: #cce0f5;
+  --bg-panel:       #f0f4f8;
+  --bg-node:        #dbeafe;
+  --bg-node-hover:  #bfdbfe;
+  --bg-terminal:    #e2eaf2;
+  --bg-dropdown:    #f0f4f8;
+  --bg-modal:       #ffffff;
+  --bg-input:       #f8fafc;
+  --bg-hover:       rgba(0,0,0,0.03);
+  --bg-hover-md:    rgba(0,0,0,0.05);
+  --bg-tab-active:  rgba(203,213,225,0.8);
+  --bg-toggle-off:  #cbd5e1;
+
+  /* Borders */
+  --border:            rgba(0,0,0,0.1);
+  --border-subtle:     rgba(0,0,0,0.05);
+  --border-tab-active: rgba(0,0,0,0.15);
+  --border-btn:        rgba(0,0,0,0.15);
+  --border-btn-hover:  rgba(0,0,0,0.3);
+  --border-node:       #93c5fd;
+  --border-node-hover: #60a5fa;
+
+  /* Node chrome */
+  --node-handle:        #bfdbfe;
+  --node-handle-border: #93c5fd;
+  --node-port-text:     #2563eb;
+  --dots-color:         #c7d8eb;
+
+  /* Text */
+  --text-primary:   #1e293b;
+  --text-secondary: #334155;
+  --text-muted:     #64748b;
+  --text-dimmed:    #94a3b8;
+  --text-faint:     #94a3b8;
+
+  /* Scrollbars */
+  --scrollbar-thumb:       #93c5fd;
+  --scrollbar-thumb-hover: #60a5fa;
 }
 
 /* ReactFlow pane: arrow cursor instead of grab — must be outside @layer to beat ReactFlow's CSS */

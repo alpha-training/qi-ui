@@ -14,28 +14,28 @@ export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRu
 
   return (
     <div
-      className={`group w-[155px] rounded-lg border-2 transition-colors select-none bg-[#0f2236]
+      className={`group w-[155px] rounded-lg border-2 transition-colors select-none bg-[var(--bg-node)]
         ${selected
           ? 'border-blue-500 shadow-xl shadow-blue-500/20'
-          : 'border-[#1a3a52] hover:border-[#2a5070]'
+          : 'border-[var(--border-node)] hover:border-[var(--border-node-hover)]'
         }`}
     >
       <Handle type="target" position={Position.Top}
-        style={{ background: '#1e4060', border: '2px solid #2a5878', width: 10, height: 10 }} />
+        style={{ background: 'var(--node-handle)', border: '2px solid var(--node-handle-border)', width: 10, height: 10 }} />
 
       <div className="px-3 py-2">
         {/* Name + status */}
         <div className="flex items-center justify-between mb-2.5">
-          <span className="text-white font-semibold text-sm leading-tight">{data.name}</span>
+          <span className="text-[var(--text-primary)] font-semibold text-sm leading-tight">{data.name}</span>
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ml-2
             ${isRunning
               ? 'bg-green-400 shadow-[0_0_7px_#4ade80]'
               : 'bg-red-500 shadow-[0_0_7px_#f87171]'}`} />
         </div>
 
-        {/* Port + button row — buttons always rendered, toggled via opacity to prevent layout shift */}
+        {/* Port + button row */}
         <div className="flex items-center justify-between min-h-[26px]">
-          <span className="text-xs text-[#4a7a9b]">{data.port}</span>
+          <span className="text-xs text-[var(--node-port-text)]">{data.port}</span>
           <div className="w-[72px] flex justify-end">
             {isRunning ? (
               <button onClick={handleStop}
@@ -59,7 +59,7 @@ export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRu
       </div>
 
       <Handle type="source" position={Position.Bottom}
-        style={{ background: '#1e4060', border: '2px solid #2a5878', width: 10, height: 10 }} />
+        style={{ background: 'var(--node-handle)', border: '2px solid var(--node-handle-border)', width: 10, height: 10 }} />
     </div>
   )
 })
