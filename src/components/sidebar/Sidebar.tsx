@@ -1,6 +1,6 @@
 import {
   LayoutGrid, TrendingUp, BarChart2, Database,
-  ShoppingCart, AlertTriangle, ScrollText, Settings,
+  ShoppingCart, AlertTriangle, Settings,
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -11,7 +11,6 @@ const NAV = [
   { icon: Database,      label: 'Data',     active: false },
   { icon: ShoppingCart,  label: 'Orders',   active: false },
   { icon: AlertTriangle, label: 'Risk',     active: false },
-  { icon: ScrollText,    label: 'Logs',     active: false },
   { icon: Settings,      label: 'Settings', active: false },
 ]
 
@@ -30,17 +29,17 @@ export default function Sidebar() {
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 px-2 py-3 flex-1">
         {NAV.map(({ icon: Icon, label, active }) => (
-          <button
+          <div
             key={label}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full text-left
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm w-full
               ${active
-                ? 'bg-[#3b82f6] text-white'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover-md)]'
+                ? 'bg-[#3b82f6] text-white font-medium cursor-pointer'
+                : 'text-[var(--text-muted)] font-light cursor-default opacity-50'
               }`}
           >
             <Icon size={16} />
             {label}
-          </button>
+          </div>
         ))}
       </nav>
 

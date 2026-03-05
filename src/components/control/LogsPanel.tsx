@@ -90,12 +90,11 @@ export default function LogsPanel() {
           )}
           {filtered.map(l => (
             <div key={l.id} className="flex gap-2 leading-5">
-              <span className="text-[var(--text-faint)] shrink-0">[{l.ts}]</span>
-              <span className={`shrink-0 font-bold
-                ${l.level === 'fatal' ? 'text-red-300' : l.level === 'error' ? 'text-red-400' : 'text-[#3b82f6]'}`}>
-                [{l.level.toUpperCase()}]
+              <span className="text-[var(--text-dimmed)] shrink-0 w-[88px] truncate">{l.process}</span>
+              <span className={`shrink-0 w-[46px] font-bold
+                ${l.level === 'fatal' ? 'text-red-300' : l.level === 'error' ? 'text-amber-400' : 'text-[#3b82f6]'}`}>
+                {l.level.toUpperCase()}
               </span>
-              <span className="text-[var(--text-dimmed)] shrink-0">{l.process}:</span>
               <span className={l.level === 'fatal' || l.level === 'error' ? 'text-red-300' : 'text-[var(--text-secondary)]'}>{l.msg}</span>
             </div>
           ))}
