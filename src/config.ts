@@ -70,7 +70,6 @@ export const PKG_DEFAULTS: Partial<Record<PalettePkg, {
   binance: { publish_to: ['tp1'] },
   kraken:  { publish_to: ['tp1'] },
   massive: { publish_to: ['tp1'] },
-  tp:      { publish_to: ['rdb1', 'wdb1'] },
   rdb:     { subscribe_to: { tp1: '*' } },
   wdb:     { subscribe_to: { tp1: '*' }, hdb: 'hdb1' },
 }

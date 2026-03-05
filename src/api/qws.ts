@@ -136,7 +136,15 @@ function query<T>(cmd: string, timeoutMs = 5000): Promise<T> {
           reject(new Error(`query timeout: ${cmd}`))
         }, timeoutMs)
         _pending.push({
-          resolve: (v) => { clearTimeout(timer); (resolve as (v: unknown) => void)(v) },
+          resolve: (v) => {
+            clearTimeout(timer)
+            // Hub returns errors as strings: "kdb error: ..."
+            if (typeof v === 'string' && v.startsWith('kdb error:')) {
+              reject(new Error(v))
+            } else {
+              ;(resolve as (v: unknown) => void)(v)
+            }
+          },
           reject:  (e) => { clearTimeout(timer); reject(e) },
         })
         _ws.send(JSON.stringify({ cmd }))
@@ -158,12 +166,24 @@ export async function ping(): Promise<boolean> {
 // ─── Stack reads/writes ───────────────────────────────────────────────────────
 
 export async function getStacks(): Promise<Record<string, Stack>> {
-  // 1_key .proc.stacks returns stack names as symbols → serialised as strings
-  const names = await query<string[]>('string 1_key .proc.stacks')
+  // Use filesystem query to find ALL stack JSON files (including newly created ones
+  // in the ui/ subdirectory that aren't in .proc.stacks startup snapshot).
+  // Split by "/" to extract filename, works for any path format (hsym or relative sym).
+  let names: string[]
+  try {
+    names = await query<string[]>('{-5_last "/" vs string x} each .qi.paths[.conf.STACKS;"*.json"]')
+  } catch {
+    // Fallback: startup snapshot only (won't include newly created stacks)
+    names = await query<string[]>('string 1_key .proc.stacks')
+  }
   if (!Array.isArray(names) || names.length === 0) throw new Error('No stacks found')
-  const entries = await Promise.all(
-    names.map(async (name) => [name, await getStack(name)] as [string, Stack]),
-  )
+  const entries = (await Promise.all(
+    names.map(async (name): Promise<[string, Stack] | null> => {
+      try { return [name, await getStack(name)] }
+      catch { return null }
+    }),
+  )).filter((e): e is [string, Stack] => e !== null)
+  if (entries.length === 0) throw new Error('No stacks could be read')
   return Object.fromEntries(entries)
 }
 
@@ -175,21 +195,11 @@ export async function getStack(name: string): Promise<Stack> {
 }
 
 export async function saveStack(name: string, stack: Stack): Promise<void> {
-  const stripped: Stack = {
-    ...stack,
-    processes: Object.fromEntries(
-      Object.entries(stack.processes).map(([k, p]) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { publish_to, subscribe_to, hdb, ...rest } = p as typeof p & {
-          publish_to?: unknown; subscribe_to?: unknown; hdb?: unknown
-        }
-        return [k, rest]
-      }),
-    ),
-  }
-  // writestack[`name; json_string] — escape quotes in the JSON string for q
-  const jsonStr = JSON.stringify(stripped, null, 2).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  await query(`writestack[\`${name}; "${jsonStr}"]`)
+  // Compact JSON, escaped for a q string literal.
+  // Wrapped with `enlist` so kdb+ sees a list of strings (not a char vector),
+  // which is what `p 0:` needs to write a single-line JSON file.
+  const jsonStr = JSON.stringify(stack).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  await query(`writestack[\`${name}; enlist "${jsonStr}"]`)
 }
 
 export async function renameStack(name: string, newName: string): Promise<void> {

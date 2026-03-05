@@ -129,6 +129,8 @@ export function AddStackModal({
   const [port, setPort]   = useState(String(suggestedPort))
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => { setPort(String(suggestedPort)) }, [suggestedPort])
+
   const validate = () => {
     if (!name.trim()) return 'Stack name is required'
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) return 'Only letters, numbers, _ and - allowed'

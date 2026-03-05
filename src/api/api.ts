@@ -42,22 +42,10 @@ export async function getStack(name: string): Promise<Stack> {
  *  Strips routing fields (publish_to, subscribe_to, hdb) that qi-proc
  *  does not yet support — they are used by the UI only. */
 export async function saveStack(name: string, stack: Stack): Promise<void> {
-  const stripped: Stack = {
-    ...stack,
-    processes: Object.fromEntries(
-      Object.entries(stack.processes).map(([k, p]) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { publish_to, subscribe_to, hdb, ...rest } = p as typeof p & {
-          publish_to?: unknown; subscribe_to?: unknown; hdb?: unknown
-        }
-        return [k, rest]
-      })
-    ),
-  }
   const res = await fetch(`${_apiBase}/writestack/${name}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(stripped),
+    body: JSON.stringify(stack),
   })
   if (!res.ok) throw new Error(`writestack/${name} failed: ${res.statusText}`)
 }

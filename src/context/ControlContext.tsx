@@ -126,7 +126,7 @@ import {
           if (tableName === 'processes') {
             const procRows = rows as realApi.ProcStatus[]
 
-            // Update statuses
+            // Update statuses only — stacks are loaded via getStacks (with full JSON including publish_to etc.)
             setStatuses(prev => {
               const next = { ...prev }
               for (const p of procRows) {
@@ -137,27 +137,6 @@ import {
               }
               return next
             })
-
-            // Build stacks from stream — replaces mock if real data arrives after fallback
-            if (!hasRealStacksRef.current) {
-              const stackMap: Record<string, Stack> = {}
-              for (const p of procRows) {
-                if (!p.stackname || !p.name) continue
-                const procName = p.name.split('.')[0]
-                if (!stackMap[p.stackname]) {
-                  stackMap[p.stackname] = { description: p.stackname, base_port: 0, processes: {} }
-                }
-                stackMap[p.stackname].processes[procName] = { pkg: p.proc, port_offset: p.port }
-              }
-              if (Object.keys(stackMap).length > 0) {
-                hasRealStacksRef.current = true
-                setStacks(stackMap)
-                const order = Object.keys(stackMap)
-                setStackOrder(order)
-                setActiveStack(prev => order.includes(prev) ? prev : (order[0] ?? ''))
-                setStacksLoading(false)
-              }
-            }
           } else if (tableName === 'Logs') {
             const logRows = rows as realApi.StreamLogEntry[]
             for (const l of logRows) {
@@ -189,24 +168,36 @@ import {
       const api = connType === 'q' ? qApi : realApi
       try {
         await api.startProcess(stackName, proc)
-      } catch {
-        await mock.startProcess(stackName, proc)
-        addLog(proc, 'error', `(offline) ${proc} started locally`)
+        setStatus(stackName, proc, 'running')
+        addLog(proc, 'info', `${proc} started`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('invalid process name')) {
+          addLog(proc, 'error', `${proc}: hub doesn't know this process — restart the hub to pick up new stacks`)
+        } else {
+          try { await mock.startProcess(stackName, proc) } catch { /* ignore */ }
+          addLog(proc, 'error', `${proc} start failed: ${msg}`)
+          setStatus(stackName, proc, 'running')
+        }
       }
-      setStatus(stackName, proc, 'running')
-      addLog(proc, 'info', `${proc} started`)
     }, [addLog, connType])
 
     const stopProcess = useCallback(async (stackName: string, proc: string) => {
       const api = connType === 'q' ? qApi : realApi
       try {
         await api.stopProcess(stackName, proc)
-      } catch {
-        await mock.stopProcess(stackName, proc)
-        addLog(proc, 'error', `(offline) ${proc} stopped locally`)
+        setStatus(stackName, proc, 'stopped')
+        addLog(proc, 'info', `${proc} stopped`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('invalid process name')) {
+          addLog(proc, 'error', `${proc}: hub doesn't know this process — restart the hub to pick up new stacks`)
+        } else {
+          try { await mock.stopProcess(stackName, proc) } catch { /* ignore */ }
+          addLog(proc, 'error', `${proc} stop failed: ${msg}`)
+          setStatus(stackName, proc, 'stopped')
+        }
       }
-      setStatus(stackName, proc, 'stopped')
-      addLog(proc, 'info', `${proc} stopped`)
     }, [addLog, connType])
 
     const startAll = useCallback(async (stackName: string) => {
@@ -307,9 +298,9 @@ import {
       try {
         await api.deleteStack(name)
         addLog('system', 'info', `Stack "${name}" deleted`)
-      } catch {
-        await mock.deleteStack(name)
-        addLog('system', 'error', `Stack "${name}" deleted locally (backend offline)`)
+      } catch (e) {
+        try { await mock.deleteStack(name) } catch { /* ignore */ }
+        addLog('system', 'error', `Stack "${name}" delete failed: ${e instanceof Error ? e.message : String(e)}`)
       }
       setStacks(s => {
         const ns = { ...s }
@@ -329,9 +320,9 @@ import {
       try {
         await api.saveStack(name, stack)
         addLog('system', 'info', `Stack "${name}" saved`)
-      } catch {
-        await mock.updateStack(name, stack)
-        addLog('system', 'error', `Stack "${name}" saved locally (backend offline)`)
+      } catch (e) {
+        try { await mock.updateStack(name, stack) } catch { /* ignore */ }
+        addLog('system', 'error', `Save failed for "${name}": ${e instanceof Error ? e.message : String(e)}`)
       }
     }, [addLog, connType])
 

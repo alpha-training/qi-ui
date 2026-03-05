@@ -238,7 +238,7 @@ export default function ControlPage() {
       {showAdd && (
         <AddStackModal
           existingNames={stackNames}
-          suggestedPort={Math.max(0, ...Object.values(stacks).map(s => s.base_port)) + 1000}
+          suggestedPort={Math.max(1024, ...Object.values(stacks).map(s => s.base_port)) + 1000}
           onAdd={handleAddStack}
           onClose={() => setShowAdd(false)}
         />
