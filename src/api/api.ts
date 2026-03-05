@@ -1,11 +1,17 @@
-import { API_BASE } from '../config'
 import type { Stack } from '../types'
+
+// ─── Dynamic API base ─────────────────────────────────────────────────────────
+
+let _apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:9001'
+
+export function setApiBase(url: string) { _apiBase = url }
+export function getApiBase(): string { return _apiBase }
 
 // ─── Stack reads/writes ───────────────────────────────────────────────────────
 
 /** Fetch all stacks from the new liststacks endpoint */
 export async function getStacks(): Promise<Record<string, Stack>> {
-  const res = await fetch(`${API_BASE}/liststacks/`)
+  const res = await fetch(`${_apiBase}/liststacks/`)
   if (!res.ok) throw new Error(`liststacks/ failed: ${res.statusText}`)
   const data = await res.json()
 
@@ -27,7 +33,7 @@ export async function getStacks(): Promise<Record<string, Stack>> {
 
 /** Fetch a single stack config from the backend */
 export async function getStack(name: string): Promise<Stack> {
-  const res = await fetch(`${API_BASE}/readstack/${name}`)
+  const res = await fetch(`${_apiBase}/readstack/${name}`)
   if (!res.ok) throw new Error(`readstack/${name} failed: ${res.statusText}`)
   return res.json()
 }
@@ -48,7 +54,7 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
       })
     ),
   }
-  const res = await fetch(`${API_BASE}/writestack/${name}`, {
+  const res = await fetch(`${_apiBase}/writestack/${name}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(stripped),
@@ -58,14 +64,14 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
 
 /** Clone a stack — then reads back the new stack to verify */
 export async function cloneStack(name: string, newName: string): Promise<Stack> {
-  const res = await fetch(`${API_BASE}/clonestack/${name}/${newName}`)
+  const res = await fetch(`${_apiBase}/clonestack/${name}/${newName}`)
   if (!res.ok) throw new Error(`clonestack/${name}/${newName} failed: ${res.statusText}`)
   return getStack(newName)
 }
 
 /** Delete a stack */
 export async function deleteStack(name: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/deletestack/${name}`)
+  const res = await fetch(`${_apiBase}/deletestack/${name}`)
   if (!res.ok) throw new Error(`deletestack/${name} failed: ${res.statusText}`)
 }
 
@@ -74,26 +80,26 @@ export async function deleteStack(name: string): Promise<void> {
 /** Start a process — format: /up/procname.stackname */
 export async function startProcess(stack: string, proc: string): Promise<void> {
   const name = `${proc}.${stack}`
-  const res = await fetch(`${API_BASE}/up/${name}`)
+  const res = await fetch(`${_apiBase}/up/${name}`)
   if (!res.ok) throw new Error(`up/${name} failed: ${res.statusText}`)
 }
 
 /** Stop a process — format: /down/procname.stackname */
 export async function stopProcess(stack: string, proc: string): Promise<void> {
   const name = `${proc}.${stack}`
-  const res = await fetch(`${API_BASE}/down/${name}`)
+  const res = await fetch(`${_apiBase}/down/${name}`)
   if (!res.ok) throw new Error(`down/${name} failed: ${res.statusText}`)
 }
 
 /** Start all processes in a stack — format: /up/stackname */
 export async function startAll(stack: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/up/${stack}`)
+  const res = await fetch(`${_apiBase}/up/${stack}`)
   if (!res.ok) throw new Error(`up/${stack} failed: ${res.statusText}`)
 }
 
 /** Stop all processes in a stack — format: /down/stackname */
 export async function stopAll(stack: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/down/${stack}`)
+  const res = await fetch(`${_apiBase}/down/${stack}`)
   if (!res.ok) throw new Error(`down/${stack} failed: ${res.statusText}`)
 }
 
@@ -111,7 +117,7 @@ export interface ProcStatus {
   proc: string        // "tp"
   stackname: string   // "dev1"
   port: number
-  status: 'up' | 'down'
+  status: 'up' | 'down' | 'busy'
   pid: number | null
   lastheartbeat: string
   goal?: string
@@ -128,6 +134,7 @@ export interface StreamLogEntry {
   sym: string
   lines: string
   name: string        // "tp1.dev1"
+  level?: string      // "info" | "error" | "fatal"
 }
 
 /**
@@ -138,7 +145,7 @@ export function connectStream(
   onMessage: (msg: StreamMessage) => void,
   onStatusChange: (connected: boolean) => void,
 ): () => void {
-  const es = new EventSource(`${API_BASE}/stream`)
+  const es = new EventSource(`${_apiBase}/stream`)
 
   es.onopen = () => onStatusChange(true)
 
@@ -162,7 +169,7 @@ export function connectStream(
 
 export async function ping(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/ping`)
+    const res = await fetch(`${_apiBase}/ping`)
     return res.ok
   } catch {
     return false

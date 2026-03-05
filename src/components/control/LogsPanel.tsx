@@ -6,7 +6,7 @@ import type { LogLevel } from '../../types'
 export default function LogsPanel() {
   const { logs, stacks, activeStack, selectedProc } = useControl()
   const [manualTab, setManualTab] = useState<string>('All')
-  const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, warn: true })
+  const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, fatal: true })
   const [autoScroll, setAutoScroll] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -48,7 +48,7 @@ export default function LogsPanel() {
       {/* Row 2: filters left, autoscroll right */}
       <div className="flex items-center justify-between px-5 pb-2">
         <div className="flex items-center gap-4">
-          {(['info', 'warn', 'error'] as LogLevel[]).map(level => (
+          {(['info', 'error', 'fatal'] as LogLevel[]).map(level => (
             <label key={level} className="flex items-center gap-2 cursor-pointer">
               <div
                 onClick={() => setFilters(f => ({ ...f, [level]: !f[level] }))}
@@ -92,11 +92,11 @@ export default function LogsPanel() {
             <div key={l.id} className="flex gap-2 leading-5">
               <span className="text-[var(--text-faint)] shrink-0">[{l.ts}]</span>
               <span className={`shrink-0 font-bold
-                ${l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-yellow-400' : 'text-[#3b82f6]'}`}>
+                ${l.level === 'fatal' ? 'text-red-300' : l.level === 'error' ? 'text-red-400' : 'text-[#3b82f6]'}`}>
                 [{l.level.toUpperCase()}]
               </span>
               <span className="text-[var(--text-dimmed)] shrink-0">{l.process}:</span>
-              <span className={l.level === 'error' ? 'text-red-300' : 'text-[var(--text-secondary)]'}>{l.msg}</span>
+              <span className={l.level === 'fatal' || l.level === 'error' ? 'text-red-300' : 'text-[var(--text-secondary)]'}>{l.msg}</span>
             </div>
           ))}
           <div ref={bottomRef} />

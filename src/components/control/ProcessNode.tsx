@@ -8,6 +8,7 @@ import { Play, Square } from 'lucide-react'
 export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRuntime>) {
   const { activeStack, startProcess, stopProcess } = useControl()
   const isRunning = data.status === 'running'
+  const isBusy = data.status === 'busy'
 
   const handleStart = (e: React.MouseEvent) => { e.stopPropagation(); startProcess(activeStack, data.name) }
   const handleStop  = (e: React.MouseEvent) => { e.stopPropagation(); stopProcess(activeStack, data.name) }
@@ -30,6 +31,8 @@ export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRu
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ml-2
             ${isRunning
               ? 'bg-green-400 shadow-[0_0_7px_#4ade80]'
+              : isBusy
+              ? 'bg-yellow-400 shadow-[0_0_7px_#facc15]'
               : 'bg-red-500 shadow-[0_0_7px_#f87171]'}`} />
         </div>
 

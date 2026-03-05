@@ -50,10 +50,12 @@ export default function ProcessTable() {
                     <span className={`w-2 h-2 rounded-full shrink-0
                       ${r.status === 'running'
                         ? 'bg-green-400 shadow-[0_0_5px_#4ade80]'
+                        : r.status === 'busy'
+                        ? 'bg-yellow-400 shadow-[0_0_5px_#facc15]'
                         : 'bg-red-500'}`}
                     />
-                    <span className={r.status === 'running' ? 'text-[var(--text-secondary)]' : 'text-[var(--text-dimmed)]'}>
-                      {r.status === 'running' ? 'up' : 'down'}
+                    <span className={r.status === 'running' ? 'text-[var(--text-secondary)]' : r.status === 'busy' ? 'text-yellow-400' : 'text-[var(--text-dimmed)]'}>
+                      {r.status === 'running' ? 'up' : r.status === 'busy' ? 'busy' : 'down'}
                     </span>
                   </span>
                 </td>
