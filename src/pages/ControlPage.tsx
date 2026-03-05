@@ -23,7 +23,7 @@ export default function ControlPage() {
     viewMode, setViewMode,
     addStack, renameStack, cloneStack, deleteStack, saveStack,
     startAll, stopAll, startProcess, stopProcess,
-    statuses, jsonStatus,
+    statuses, jsonStatus, stacksLoading,
   } = useControl()
 
   const [showMenu, setShowMenu]         = useState(false)
@@ -39,12 +39,11 @@ export default function ControlPage() {
   const procNames     = useMemo(() => Object.keys(stack?.processes ?? {}), [stack])
   const stackStatuses = useMemo(() => statuses[activeStack] ?? {}, [statuses, activeStack])
 
-  // Disable Start all if every process is running; Stop all if every process is stopped
   const allRunning = useMemo(() =>
-    procNames.length > 0 && procNames.every(p => stackStatuses[p] === 'running'),
+    procNames.length > 0 && procNames.every(p => stackStatuses[p] === 'running' || stackStatuses[p] === 'busy'),
     [procNames, stackStatuses])
-  const allStopped = useMemo(() =>
-    procNames.length > 0 && procNames.every(p => !stackStatuses[p] || stackStatuses[p] === 'stopped'),
+  const anyRunning = useMemo(() =>
+    procNames.some(p => stackStatuses[p] === 'running' || stackStatuses[p] === 'busy'),
     [procNames, stackStatuses])
 
   useEffect(() => {
@@ -70,7 +69,8 @@ export default function ControlPage() {
     if (!currentStack) return
     const pkg = (active.data.current as { pkg: string }).pkg
     const name = autoName(pkg, currentStack.processes)
-    const portOffset = Object.keys(currentStack.processes).length
+    const existingOffsets = Object.values(currentStack.processes).map(p => p.port_offset)
+    const portOffset = existingOffsets.length === 0 ? 0 : Math.max(...existingOffsets) + 1
     const defaults = PKG_DEFAULTS[pkg as PalettePkg] ?? {}
     const updated: Stack = {
       ...currentStack,
@@ -83,6 +83,17 @@ export default function ControlPage() {
     addStack(name, { description, base_port: basePort, processes: {} })
   }
 
+  if (stacksLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)]">
+        <div className="flex items-center gap-3 text-[var(--text-dimmed)] text-sm">
+          <div className="w-4 h-4 border-2 border-[var(--border)] border-t-[#3b82f6] rounded-full animate-spin" />
+          Connecting…
+        </div>
+      </div>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -92,12 +103,12 @@ export default function ControlPage() {
       <div className="flex flex-col h-full overflow-hidden">
 
         {/* ── Top bar ───────────────────────────────────────────────── */}
-        <div className="shrink-0 flex items-stretch border-b border-white/10 bg-[#0f1117]">
+        <div className="shrink-0 flex items-stretch border-b border-[var(--border)] bg-[var(--bg-surface)]">
 
-          {/* Left section: view toggle + scrollable stack tabs — flex-1 takes all remaining space */}
+          {/* Left section: view toggle + scrollable stack tabs */}
           <div className="flex-1 min-w-0 flex items-center gap-4 px-5 py-2.5">
 
-            {/* View toggle — fixed width prevents layout jump on text change */}
+            {/* View toggle */}
             <button onClick={() => setViewMode(viewMode === 'graph' ? 'table' : 'graph')}
               className="flex items-center justify-center gap-2 w-[128px] shrink-0 px-3.5 py-1.5 rounded border
                 font-medium text-sm whitespace-nowrap transition-all border-[#3b82f6] text-[#3b82f6] bg-[#3b82f6]/10 hover:bg-[#3b82f6]/20">
@@ -106,14 +117,14 @@ export default function ControlPage() {
 
             {/* Stack tabs — scrollable, + always pinned outside */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <div className="tab-scroll min-w-0 overflow-x-auto pb-1.5">
+              <div className="tab-scroll min-w-0 overflow-x-auto">
                 <div className="flex items-center gap-1.5 ml-3 w-max">
                   {stackNames.map(name => (
                     <button key={name} onClick={() => { setActiveStack(name); setSelectedProc(null) }}
                       className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors
                         ${activeStack === name
-                          ? 'bg-zinc-700/80 text-white border border-white/15'
-                          : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                          ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)] border border-[var(--border-tab-active)]'
+                          : 'text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
                       {name}
                       {activeStack === name && (
                         <span
@@ -123,7 +134,7 @@ export default function ControlPage() {
                             setMenuAnchor({ top: rect.bottom + 6, left: rect.left })
                             setShowMenu(v => !v)
                           }}
-                          className="text-zinc-400 hover:text-white ml-0.5 cursor-pointer">
+                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] ml-0.5 cursor-pointer">
                           <MoreHorizontal size={12} />
                         </span>
                       )}
@@ -132,27 +143,27 @@ export default function ControlPage() {
                 </div>
               </div>
               <button onClick={() => setShowAdd(true)}
-                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5">
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-[var(--text-dimmed)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover-md)]">
                 <Plus size={13} />
               </button>
             </div>
 
-            {/* Stack menu portal — rendered at body level to escape overflow:auto clipping */}
+            {/* Stack menu portal */}
             {showMenu && menuAnchor && createPortal(
               <div
                 style={{ position: 'fixed', top: menuAnchor.top, left: menuAnchor.left }}
-                className="z-[9999] bg-[#1a2233] border border-white/10 rounded-lg shadow-xl w-36 py-1"
+                className="z-[9999] bg-[var(--bg-dropdown)] border border-[var(--border)] rounded-lg shadow-xl w-36 py-1"
                 onMouseLeave={() => setShowMenu(false)}>
                 <button onClick={() => { setShowRename(true); setShowMenu(false) }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-zinc-300 hover:bg-white/5">
-                  <Pencil size={12} className="text-zinc-500" /> Rename
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]">
+                  <Pencil size={12} className="text-[var(--text-dimmed)]" /> Rename
                 </button>
                 <button onClick={() => { setShowClone(true); setShowMenu(false) }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-zinc-300 hover:bg-white/5">
-                  <Copy size={12} className="text-zinc-500" /> Clone
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]">
+                  <Copy size={12} className="text-[var(--text-dimmed)]" /> Clone
                 </button>
                 <button onClick={() => { setShowDelete(true); setShowMenu(false) }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-red-400 hover:bg-white/5">
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-red-400 hover:bg-[var(--bg-hover-md)]">
                   <Trash2 size={12} className="text-red-400" /> Delete
                 </button>
               </div>,
@@ -160,31 +171,31 @@ export default function ControlPage() {
             )}
           </div>
 
-          {/* Start / Stop all — fixed section, always in the same position */}
-          <div className="shrink-0 flex items-center gap-2 px-4 border-l border-white/10">
+          {/* Start / Stop all */}
+          <div className="shrink-0 flex items-center gap-2 px-4 border-l border-[var(--border)]">
             <button
               onClick={() => startAll(activeStack)}
               disabled={allRunning}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
                 ${allRunning
-                  ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                  ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
                   : 'border-green-500/70 text-green-400 hover:bg-green-500/10'}`}>
-              <Play size={11} className={allRunning ? 'fill-zinc-600' : 'fill-green-400'} />
+              <Play size={11} className={allRunning ? 'fill-[var(--text-faint)]' : 'fill-green-400'} />
               Start all
             </button>
             <button
               onClick={() => stopAll(activeStack)}
-              disabled={allStopped}
+              disabled={!anyRunning}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
-                ${allStopped
-                  ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                ${!anyRunning
+                  ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
                   : 'border-orange-500/70 text-orange-400 hover:bg-orange-500/10'}`}>
-              <Square size={11} className={allStopped ? 'fill-zinc-600' : 'fill-orange-400'} />
+              <Square size={11} className={!anyRunning ? 'fill-[var(--text-faint)]' : 'fill-orange-400'} />
               Stop all
             </button>
           </div>
 
-          {/* Right section: JSON Config header — aligns with JsonPanel below */}
+          {/* Right section: JSON Config header */}
           {(() => {
             const cfg = {
               valid:   { label: 'Valid',           dot: 'bg-green-400 shadow-[0_0_6px_#4ade80]', text: 'text-green-400' },
@@ -192,8 +203,8 @@ export default function ControlPage() {
               invalid: { label: 'Invalid',         dot: 'bg-red-400 shadow-[0_0_6px_#f87171]',   text: 'text-red-400'   },
             }[jsonStatus]
             return (
-              <div className="w-80 shrink-0 flex items-center justify-between px-5 border-l border-white/10">
-                <span className="text-sm font-bold text-white">JSON Config</span>
+              <div className="w-80 shrink-0 flex items-center justify-between px-5 border-l border-[var(--border)]">
+                <span className="text-sm font-bold text-[var(--text-primary)]">JSON Config</span>
                 <span className={`flex items-center gap-2 text-xs font-semibold ${cfg.text}`}>
                   <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
                   {cfg.label}
@@ -208,9 +219,9 @@ export default function ControlPage() {
           <div className="flex flex-col flex-1 min-h-0">
             <div className="flex flex-1 min-h-0">
               {viewMode === 'graph' && <ProcessPalette />}
-              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable />}
+              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable key={activeStack} />}
             </div>
-            <LogsPanel />
+            <LogsPanel key={activeStack} />
           </div>
           <JsonPanel />
         </div>
@@ -225,7 +236,12 @@ export default function ControlPage() {
       </DragOverlay>
 
       {showAdd && (
-        <AddStackModal existingNames={stackNames} onAdd={handleAddStack} onClose={() => setShowAdd(false)} />
+        <AddStackModal
+          existingNames={stackNames}
+          suggestedPort={Math.max(1024, ...Object.values(stacks).map(s => s.base_port)) + 1000}
+          onAdd={handleAddStack}
+          onClose={() => setShowAdd(false)}
+        />
       )}
       {showRename && (
         <RenameStackModal stackName={activeStack} existingNames={stackNames}

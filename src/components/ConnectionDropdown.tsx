@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { Connection } from '../types'
-
-const STORAGE_KEY = 'qi_connections'
-const ACTIVE_KEY = 'qi_active_connection'
+import { useConnectionContext } from '../context/ConnectionContext'
 
 type FormState = {
   host: string
@@ -11,35 +9,26 @@ type FormState = {
   name: string
   username: string
   password: string
+  connType: 'q' | 'api'
 }
 
-const emptyForm: FormState = { host: '', port: '', name: '', username: '', password: '' }
+const emptyForm: FormState = { host: '', port: '', name: '', username: '', password: '', connType: 'q' }
 
-function loadConnections(): Connection[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
-  } catch {
-    return []
-  }
-}
+const formFields = [
+  { key: 'host',     label: 'Host',     placeholder: 'localhost', required: true,  type: 'text'     },
+  { key: 'port',     label: 'Port',     placeholder: '8000',      required: true,  type: 'number'   },
+  { key: 'name',     label: 'Name',     placeholder: 'optional',       required: false, type: 'text'     },
+  { key: 'username', label: 'Username', placeholder: 'optional',  required: false, type: 'text'     },
+  { key: 'password', label: 'Password', placeholder: 'optional',  required: false, type: 'password' },
+]
 
 export default function ConnectionDropdown() {
-  const [connections, setConnections] = useState<Connection[]>(loadConnections)
-  const [activeId, setActiveId] = useState<string | null>(() => localStorage.getItem(ACTIVE_KEY))
+  const { connections, activeId, activeConn, setActiveId, addConnection, updateConnection, removeConnection } = useConnectionContext()
   const [isOpen, setIsOpen] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(connections))
-  }, [connections])
-
-  useEffect(() => {
-    if (activeId) localStorage.setItem(ACTIVE_KEY, activeId)
-    else localStorage.removeItem(ACTIVE_KEY)
-  }, [activeId])
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -54,7 +43,6 @@ export default function ConnectionDropdown() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const activeConn = connections.find(c => c.id === activeId)
   const label = activeConn
     ? (activeConn.name || `${activeConn.host}:${activeConn.port}`)
     : 'Connect'
@@ -73,13 +61,9 @@ export default function ConnectionDropdown() {
       name: conn.name ?? '',
       username: conn.username ?? '',
       password: conn.password ?? '',
+      connType: conn.type ?? 'q',
     })
     setShowForm(true)
-  }
-
-  function handleDelete(id: string) {
-    setConnections(prev => prev.filter(c => c.id !== id))
-    if (activeId === id) setActiveId(null)
   }
 
   function handleSave() {
@@ -87,37 +71,25 @@ export default function ConnectionDropdown() {
     const portNum = parseInt(form.port, 10)
     if (isNaN(portNum)) return
 
+    const data = {
+      host: form.host.trim(),
+      port: portNum,
+      type: form.connType,
+      ...(form.name.trim() && { name: form.name.trim() }),
+      ...(form.username.trim() && { username: form.username.trim() }),
+      ...(form.password && { password: form.password }),
+    }
+
     if (editingId) {
-      setConnections(prev =>
-        prev.map(c =>
-          c.id === editingId
-            ? {
-                ...c,
-                host: form.host.trim(),
-                port: portNum,
-                name: form.name.trim() || undefined,
-                username: form.username.trim() || undefined,
-                password: form.password || undefined,
-              }
-            : c
-        )
-      )
+      updateConnection({ id: editingId, ...data })
     } else {
-      const newConn: Connection = {
-        id: crypto.randomUUID(),
-        host: form.host.trim(),
-        port: portNum,
-        ...(form.name.trim() && { name: form.name.trim() }),
-        ...(form.username.trim() && { username: form.username.trim() }),
-        ...(form.password && { password: form.password }),
-      }
-      setConnections(prev => [...prev, newConn])
-      setActiveId(newConn.id)
+      addConnection(data)
     }
 
     setShowForm(false)
     setEditingId(null)
     setForm(emptyForm)
+    setIsOpen(false)
   }
 
   function handleCancel() {
@@ -125,14 +97,6 @@ export default function ConnectionDropdown() {
     setEditingId(null)
     setForm(emptyForm)
   }
-
-  const formFields = [
-    { key: 'host',     label: 'Host',     placeholder: 'localhost',   required: true,  type: 'text'     },
-    { key: 'port',     label: 'Port',     placeholder: '8000',        required: true,  type: 'number'   },
-    { key: 'name',     label: 'Name',     placeholder: 'dev',         required: false, type: 'text'     },
-    { key: 'username', label: 'Username', placeholder: 'optional',    required: false, type: 'text'     },
-    { key: 'password', label: 'Password', placeholder: 'optional',    required: false, type: 'password' },
-  ]
 
   return (
     <div ref={ref} className="relative">
@@ -173,18 +137,10 @@ export default function ConnectionDropdown() {
                   {sublabel && <div className="text-xs text-zinc-500 truncate font-mono">{sublabel}</div>}
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => openEdit(conn)}
-                    className="p-1 text-zinc-400 hover:text-white rounded transition-colors"
-                    title="Edit"
-                  >
+                  <button onClick={() => openEdit(conn)} className="p-1 text-zinc-400 hover:text-white rounded transition-colors" title="Edit">
                     <Pencil size={12} />
                   </button>
-                  <button
-                    onClick={() => handleDelete(conn.id)}
-                    className="p-1 text-zinc-400 hover:text-red-400 rounded transition-colors"
-                    title="Delete"
-                  >
+                  <button onClick={() => removeConnection(conn.id)} className="p-1 text-zinc-400 hover:text-red-400 rounded transition-colors" title="Delete">
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -199,6 +155,27 @@ export default function ConnectionDropdown() {
               <div className="text-xs font-medium text-zinc-400 mb-2">
                 {editingId ? 'Edit connection' : 'New connection'}
               </div>
+
+              {/* Connection type radio */}
+              <div className="flex items-center gap-2 pb-1">
+                <span className="text-xs text-zinc-500 w-16 shrink-0">Type</span>
+                <div className="flex gap-3">
+                  {(['q', 'api'] as const).map(t => (
+                    <label key={t} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="connType"
+                        value={t}
+                        checked={form.connType === t}
+                        onChange={() => setForm(f => ({ ...f, connType: t }))}
+                        className="accent-blue-500"
+                      />
+                      <span className="text-xs text-zinc-300 font-mono">{t}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {formFields.map(field => (
                 <div key={field.key} className="flex items-center gap-2">
                   <label className="text-xs text-zinc-500 w-16 shrink-0">
@@ -208,7 +185,7 @@ export default function ConnectionDropdown() {
                   <input
                     type={field.type}
                     placeholder={field.placeholder}
-                    value={form[field.key as keyof FormState]}
+                    value={form[field.key as keyof Omit<FormState, 'connType'>]}
                     onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleSave()}
                     className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
@@ -216,10 +193,7 @@ export default function ConnectionDropdown() {
                 </div>
               ))}
               <div className="flex gap-2 pt-1">
-                <button
-                  onClick={handleCancel}
-                  className="flex-1 py-1.5 text-xs text-zinc-400 hover:text-white border border-white/10 rounded transition-colors"
-                >
+                <button onClick={handleCancel} className="flex-1 py-1.5 text-xs text-zinc-400 hover:text-white border border-white/10 rounded transition-colors">
                   Cancel
                 </button>
                 <button
@@ -227,15 +201,12 @@ export default function ConnectionDropdown() {
                   disabled={!form.host.trim() || !form.port.trim()}
                   className="flex-1 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {editingId ? 'Save' : 'Add'}
+                  {editingId ? 'Save' : 'Connect'}
                 </button>
               </div>
             </div>
           ) : (
-            <button
-              onClick={openAdd}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-            >
+            <button onClick={openAdd} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>

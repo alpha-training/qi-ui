@@ -76,20 +76,24 @@ export function deriveGraphNodes(
 
 export function deriveGraphEdges(stack: Stack): GraphEdge[] {
   const edges: GraphEdge[] = []
-  const seen = new Set<string>()
+  const seen = new Set<string>() // keyed by source|target — prevents duplicate pairs across edge types
 
   function add(source: string, target: string, edgeType: GraphEdge['edgeType']) {
-    const key = `${source}|${target}|${edgeType}`
+    const key = `${source}|${target}`
     if (!seen.has(key) && stack.processes[source] && stack.processes[target]) {
       seen.add(key)
-      edges.push({ id: key, source, target, edgeType })
+      edges.push({ id: `${key}|${edgeType}`, source, target, edgeType })
     }
   }
 
+  // subscribe_to and hdb first — they take priority over publish_to for the same pair
   for (const [name, proc] of Object.entries(stack.processes)) {
-    proc.publishes_to?.forEach(t => add(name, t, 'publishes'))
-    Object.keys(proc.subscribes_to ?? {}).forEach(src => add(src, name, 'subscribes'))
+    Object.keys(proc.subscribe_to ?? {}).forEach(src => add(src, name, 'subscribes'))
     if (proc.hdb) add(name, proc.hdb, 'hdb')
+  }
+  // publish_to second — skipped if a subscribe/hdb edge already covers this pair
+  for (const [name, proc] of Object.entries(stack.processes)) {
+    proc.publish_to?.forEach(t => add(name, t, 'publishes'))
   }
 
   return edges

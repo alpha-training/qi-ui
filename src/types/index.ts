@@ -4,8 +4,8 @@ export interface Process {
     pkg: string
     port_offset: number
     args?: string[]
-    publishes_to?: string[]
-    subscribes_to?: Record<string, string>
+    publish_to?: string[]
+    subscribe_to?: Record<string, string>
     hdb?: string
   }
   
@@ -17,7 +17,7 @@ export interface Process {
   
   // ─── Runtime / Status ─────────────────────────────────────────────────────────
   
-  export type ProcessStatus = 'running' | 'stopped'
+  export type ProcessStatus = 'running' | 'stopped' | 'busy'
   
   export interface ProcessRuntime {
     name: string
@@ -50,7 +50,7 @@ export interface Process {
   
   // ─── Logs ─────────────────────────────────────────────────────────────────────
   
-  export type LogLevel = 'info' | 'error' | 'warn'
+  export type LogLevel = 'info' | 'error' | 'fatal'
   
   export interface LogEntry {
     id: number
@@ -69,6 +69,7 @@ export interface Connection {
   name?: string
   username?: string
   password?: string
+  type?: 'q' | 'api'
 }
 
 // ─── JSON Editor ──────────────────────────────────────────────────────────────
