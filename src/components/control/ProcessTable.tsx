@@ -29,6 +29,13 @@ export default function ProcessTable() {
             </tr>
           </thead>
           <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-12 text-center text-sm text-[var(--text-faint)]">
+                  No processes in this stack.
+                </td>
+              </tr>
+            )}
             {pageRows.map(r => (
               <tr
                 key={r.name}
@@ -55,7 +62,9 @@ export default function ProcessTable() {
                   {r.mem && r.heap ? `${r.mem} / ${r.heap}` : '–'}
                 </td>
                 <td className="px-4 py-2">
-                  <button className="text-[var(--text-dimmed)] hover:text-[var(--text-primary)] transition-colors p-1 rounded hover:bg-[var(--bg-hover-md)]">
+                  <button
+                    onClick={e => { e.stopPropagation(); setSelectedProc(r.name === selectedProc ? null : r.name) }}
+                    className="text-[var(--text-dimmed)] hover:text-[var(--text-primary)] transition-colors p-1 rounded hover:bg-[var(--bg-hover-md)]">
                     <FileText size={14} />
                   </button>
                 </td>
@@ -80,19 +89,21 @@ export default function ProcessTable() {
         </table>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-[var(--border)] shrink-0">
-        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-          className="px-3.5 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-muted)]
-            hover:border-[var(--border-node)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-          Previous
-        </button>
-        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-          className="px-3.5 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-muted)]
-            hover:border-[var(--border-node)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-          Next
-        </button>
-      </div>
+      {/* Pagination — only shown when there is more than one page */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-[var(--border)] shrink-0">
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+            className="px-3.5 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-muted)]
+              hover:border-[var(--border-node)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+            Previous
+          </button>
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+            className="px-3.5 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-muted)]
+              hover:border-[var(--border-node)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+            Next
+          </button>
+        </div>
+      )}
     </div>
   )
 }

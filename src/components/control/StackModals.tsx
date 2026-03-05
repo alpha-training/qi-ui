@@ -117,15 +117,16 @@ function ModalFooter({
 // ─── Add Stack Modal ──────────────────────────────────────────────────────────
 
 export function AddStackModal({
-  existingNames, onAdd, onClose,
+  existingNames, suggestedPort, onAdd, onClose,
 }: {
   existingNames: string[]
+  suggestedPort: number
   onAdd: (name: string, description: string, basePort: number) => void
   onClose: () => void
 }) {
   const [name, setName]   = useState('')
   const [desc, setDesc]   = useState('')
-  const [port, setPort]   = useState('9000')
+  const [port, setPort]   = useState(String(suggestedPort))
   const [error, setError] = useState<string | null>(null)
 
   const validate = () => {
@@ -195,7 +196,7 @@ export function CloneStackModal({
         <div>
           <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">New stack name *</label>
           <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
-            onEnter={handleConfirm} placeholder="New name" error={error} />
+            onEnter={handleConfirm} placeholder="New name" error={error} autoFocus />
         </div>
         <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Clone stack" />
       </div>
@@ -231,7 +232,7 @@ export function RenameStackModal({
     <Modal title={`Rename "${stackName}"`} icon={<Pencil size={15} className="text-blue-400" />} onClose={onClose}>
       <div className="space-y-4">
         <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
-          onEnter={handleConfirm} placeholder="New name" error={error} />
+          onEnter={handleConfirm} placeholder="New name" error={error} autoFocus />
         <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Rename" />
       </div>
     </Modal>
@@ -269,7 +270,7 @@ export function DeleteStackModal({
             Type <span className="text-[var(--text-primary)] font-mono">{stackName}</span> to confirm
           </label>
           <ModalInput value={typed} onChange={setTyped} onEnter={confirmed ? onDelete : undefined}
-            placeholder={stackName} />
+            placeholder={stackName} autoFocus />
         </div>
         <ModalFooter
           onCancel={onClose}

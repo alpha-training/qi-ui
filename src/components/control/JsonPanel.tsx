@@ -63,7 +63,7 @@ export default function JsonPanel() {
 
   useEffect(() => {
     if (!editorRef.current) return
-    if (editorKeyRef.current === editorKey) return
+    if (editorKeyRef.current === editorKey && viewRef.current !== null) return
 
     // If the user has unsaved changes, capture a save closure before switching.
     // Use refs — isDirty and stacks are stale in this effect's closure.
@@ -153,6 +153,7 @@ export default function JsonPanel() {
 
     return () => {
       viewRef.current?.destroy()
+      viewRef.current = null
       // Do NOT reset editorKeyRef here — the next effect run needs to read
       // the old key to detect unsaved changes before switching.
     }

@@ -87,8 +87,8 @@ export function deriveGraphEdges(stack: Stack): GraphEdge[] {
   }
 
   for (const [name, proc] of Object.entries(stack.processes)) {
-    proc.publishes_to?.forEach(t => add(name, t, 'publishes'))
-    Object.keys(proc.subscribes_to ?? {}).forEach(src => add(src, name, 'subscribes'))
+    proc.publish_to?.forEach(t => add(name, t, 'publishes'))
+    Object.keys(proc.subscribe_to ?? {}).forEach(src => add(src, name, 'subscribes'))
     if (proc.hdb) add(name, proc.hdb, 'hdb')
   }
 

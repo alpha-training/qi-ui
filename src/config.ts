@@ -62,19 +62,19 @@ export const LAYOUT = {
 
 /** Default connection fields applied when a package is dropped onto the canvas */
 export const PKG_DEFAULTS: Partial<Record<PalettePkg, {
-  publishes_to?: string[]
-  subscribes_to?: Record<string, string>
+  publish_to?: string[]
+  subscribe_to?: Record<string, string>
   hdb?: string
 }>> = {
-  alpaca:  { publishes_to: ['tp1'] },
-  binance: { publishes_to: ['tp1'] },
-  kraken:  { publishes_to: ['tp1'] },
-  massive: { publishes_to: ['tp1'] },
-  tp:      { publishes_to: ['rdb1', 'wdb1'] },
-  rdb:     { subscribes_to: { tp1: '*' } },
-  wdb:     { subscribes_to: { tp1: '*' }, hdb: 'hdb1' },
+  alpaca:  { publish_to: ['tp1'] },
+  binance: { publish_to: ['tp1'] },
+  kraken:  { publish_to: ['tp1'] },
+  massive: { publish_to: ['tp1'] },
+  tp:      { publish_to: ['rdb1', 'wdb1'] },
+  rdb:     { subscribe_to: { tp1: '*' } },
+  wdb:     { subscribe_to: { tp1: '*' }, hdb: 'hdb1' },
 }
 
 // ─── API base ─────────────────────────────────────────────────────────────────
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080'
+export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:9001'

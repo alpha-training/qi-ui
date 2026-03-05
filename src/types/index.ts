@@ -4,8 +4,8 @@ export interface Process {
     pkg: string
     port_offset: number
     args?: string[]
-    publishes_to?: string[]
-    subscribes_to?: Record<string, string>
+    publish_to?: string[]
+    subscribe_to?: Record<string, string>
     hdb?: string
   }
   

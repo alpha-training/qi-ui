@@ -23,7 +23,7 @@ export default function ControlPage() {
     viewMode, setViewMode,
     addStack, renameStack, cloneStack, deleteStack, saveStack,
     startAll, stopAll, startProcess, stopProcess,
-    statuses, jsonStatus,
+    statuses, jsonStatus, stacksLoading,
   } = useControl()
 
   const [showMenu, setShowMenu]         = useState(false)
@@ -42,8 +42,8 @@ export default function ControlPage() {
   const allRunning = useMemo(() =>
     procNames.length > 0 && procNames.every(p => stackStatuses[p] === 'running'),
     [procNames, stackStatuses])
-  const allStopped = useMemo(() =>
-    procNames.length > 0 && procNames.every(p => !stackStatuses[p] || stackStatuses[p] === 'stopped'),
+  const anyRunning = useMemo(() =>
+    procNames.some(p => stackStatuses[p] === 'running'),
     [procNames, stackStatuses])
 
   useEffect(() => {
@@ -69,7 +69,8 @@ export default function ControlPage() {
     if (!currentStack) return
     const pkg = (active.data.current as { pkg: string }).pkg
     const name = autoName(pkg, currentStack.processes)
-    const portOffset = Object.keys(currentStack.processes).length
+    const existingOffsets = Object.values(currentStack.processes).map(p => p.port_offset)
+    const portOffset = existingOffsets.length === 0 ? 0 : Math.max(...existingOffsets) + 1
     const defaults = PKG_DEFAULTS[pkg as PalettePkg] ?? {}
     const updated: Stack = {
       ...currentStack,
@@ -80,6 +81,17 @@ export default function ControlPage() {
 
   const handleAddStack = (name: string, description: string, basePort: number) => {
     addStack(name, { description, base_port: basePort, processes: {} })
+  }
+
+  if (stacksLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)]">
+        <div className="flex items-center gap-3 text-[var(--text-dimmed)] text-sm">
+          <div className="w-4 h-4 border-2 border-[var(--border)] border-t-[#3b82f6] rounded-full animate-spin" />
+          Connecting…
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -105,7 +117,7 @@ export default function ControlPage() {
 
             {/* Stack tabs — scrollable, + always pinned outside */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <div className="tab-scroll min-w-0 overflow-x-auto pb-1.5">
+              <div className="tab-scroll min-w-0 overflow-x-auto">
                 <div className="flex items-center gap-1.5 ml-3 w-max">
                   {stackNames.map(name => (
                     <button key={name} onClick={() => { setActiveStack(name); setSelectedProc(null) }}
@@ -173,12 +185,12 @@ export default function ControlPage() {
             </button>
             <button
               onClick={() => stopAll(activeStack)}
-              disabled={allStopped}
+              disabled={!anyRunning}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
-                ${allStopped
+                ${!anyRunning
                   ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
                   : 'border-orange-500/70 text-orange-400 hover:bg-orange-500/10'}`}>
-              <Square size={11} className={allStopped ? 'fill-[var(--text-faint)]' : 'fill-orange-400'} />
+              <Square size={11} className={!anyRunning ? 'fill-[var(--text-faint)]' : 'fill-orange-400'} />
               Stop all
             </button>
           </div>
@@ -207,9 +219,9 @@ export default function ControlPage() {
           <div className="flex flex-col flex-1 min-h-0">
             <div className="flex flex-1 min-h-0">
               {viewMode === 'graph' && <ProcessPalette />}
-              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable />}
+              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable key={activeStack} />}
             </div>
-            <LogsPanel />
+            <LogsPanel key={activeStack} />
           </div>
           <JsonPanel />
         </div>
@@ -224,7 +236,12 @@ export default function ControlPage() {
       </DragOverlay>
 
       {showAdd && (
-        <AddStackModal existingNames={stackNames} onAdd={handleAddStack} onClose={() => setShowAdd(false)} />
+        <AddStackModal
+          existingNames={stackNames}
+          suggestedPort={Math.max(0, ...Object.values(stacks).map(s => s.base_port)) + 1000}
+          onAdd={handleAddStack}
+          onClose={() => setShowAdd(false)}
+        />
       )}
       {showRename && (
         <RenameStackModal stackName={activeStack} existingNames={stackNames}

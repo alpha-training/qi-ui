@@ -75,9 +75,15 @@ export default function StackCanvas() {
         <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="var(--dots-color)" />
         <Controls
           showInteractive={false}
-          className="!bg-[var(--bg-node)] !border-[var(--border-node)] !shadow-none [&>button]:!bg-[var(--bg-node)] [&>button]:!border-[var(--border-node)] [&>button]:!text-[var(--text-muted)] [&>button:hover]:!bg-[var(--bg-node-hover)]"
+          className="!bg-[var(--bg-node)] !border-[var(--border-node)] !shadow-none [&>button]:!bg-[var(--bg-node)] [&>button]:!border-[var(--border-node)] [&>button]:!text-white [&>button:hover]:!bg-[var(--bg-node-hover)] [&>button>svg]:!fill-white"
         />
       </ReactFlow>
+
+      {nodes.length === 0 && !isOver && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="text-[var(--text-faint)] text-sm">Drag a process from the palette to add it</span>
+        </div>
+      )}
 
       {isOver && (
         <div className="absolute inset-0 pointer-events-none z-10 border-2 border-dashed border-blue-500/40 rounded-lg m-2 flex items-center justify-center">

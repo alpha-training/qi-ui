@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { ArrowDownToLine } from 'lucide-react'
 import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
@@ -48,7 +48,7 @@ export default function LogsPanel() {
       {/* Row 2: filters left, autoscroll right */}
       <div className="flex items-center justify-between px-5 pb-2">
         <div className="flex items-center gap-4">
-          {(['info', 'error'] as LogLevel[]).map(level => (
+          {(['info', 'warn', 'error'] as LogLevel[]).map(level => (
             <label key={level} className="flex items-center gap-2 cursor-pointer">
               <div
                 onClick={() => setFilters(f => ({ ...f, [level]: !f[level] }))}
@@ -77,7 +77,7 @@ export default function LogsPanel() {
             onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
             title="Scroll to latest"
             className="text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] transition-colors">
-            <RefreshCw size={13} />
+            <ArrowDownToLine size={13} />
           </button>
         </div>
       </div>
@@ -95,6 +95,7 @@ export default function LogsPanel() {
                 ${l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-yellow-400' : 'text-[#3b82f6]'}`}>
                 [{l.level.toUpperCase()}]
               </span>
+              <span className="text-[var(--text-dimmed)] shrink-0">{l.process}:</span>
               <span className={l.level === 'error' ? 'text-red-300' : 'text-[var(--text-secondary)]'}>{l.msg}</span>
             </div>
           ))}
