@@ -128,13 +128,14 @@ export interface ProcStatus {
   heap?: unknown
 }
 
-/** Shape of a log entry from the kdb+ Logs stream */
+/** Shape of a log entry from the kdb+ Logs stream.
+ *  `lines` is an array of raw log file lines, each formatted as:
+ *  "2026.03.05D16:36:03.000000000 info 0 message here" */
 export interface StreamLogEntry {
   time: string
   sym: string
-  lines: string
+  lines: string | string[]
   name: string        // "tp1.dev1"
-  level?: string      // "info" | "error" | "fatal"
 }
 
 /**

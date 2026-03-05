@@ -17,7 +17,7 @@ const emptyForm: FormState = { host: '', port: '', name: '', username: '', passw
 const formFields = [
   { key: 'host',     label: 'Host',     placeholder: 'localhost', required: true,  type: 'text'     },
   { key: 'port',     label: 'Port',     placeholder: '8000',      required: true,  type: 'number'   },
-  { key: 'name',     label: 'Name',     placeholder: 'dev',       required: false, type: 'text'     },
+  { key: 'name',     label: 'Name',     placeholder: 'optional',       required: false, type: 'text'     },
   { key: 'username', label: 'Username', placeholder: 'optional',  required: false, type: 'text'     },
   { key: 'password', label: 'Password', placeholder: 'optional',  required: false, type: 'password' },
 ]

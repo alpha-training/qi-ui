@@ -40,10 +40,10 @@ export default function ControlPage() {
   const stackStatuses = useMemo(() => statuses[activeStack] ?? {}, [statuses, activeStack])
 
   const allRunning = useMemo(() =>
-    procNames.length > 0 && procNames.every(p => stackStatuses[p] === 'running'),
+    procNames.length > 0 && procNames.every(p => stackStatuses[p] === 'running' || stackStatuses[p] === 'busy'),
     [procNames, stackStatuses])
   const anyRunning = useMemo(() =>
-    procNames.some(p => stackStatuses[p] === 'running'),
+    procNames.some(p => stackStatuses[p] === 'running' || stackStatuses[p] === 'busy'),
     [procNames, stackStatuses])
 
   useEffect(() => {

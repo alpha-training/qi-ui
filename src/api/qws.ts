@@ -122,7 +122,7 @@ function _ensureOpen(): Promise<void> {
 
 // ─── Query (request/response) ─────────────────────────────────────────────────
 
-function query<T>(cmd: string): Promise<T> {
+function query<T>(cmd: string, timeoutMs = 5000): Promise<T> {
   return _ensureOpen().then(
     () =>
       new Promise<T>((resolve, reject) => {
@@ -130,7 +130,15 @@ function query<T>(cmd: string): Promise<T> {
           reject(new Error('WebSocket not open'))
           return
         }
-        _pending.push({ resolve: resolve as (v: unknown) => void, reject })
+        const timer = setTimeout(() => {
+          const idx = _pending.findIndex(p => p.resolve === (resolve as (v: unknown) => void))
+          if (idx !== -1) _pending.splice(idx, 1)
+          reject(new Error(`query timeout: ${cmd}`))
+        }, timeoutMs)
+        _pending.push({
+          resolve: (v) => { clearTimeout(timer); (resolve as (v: unknown) => void)(v) },
+          reject:  (e) => { clearTimeout(timer); reject(e) },
+        })
         _ws.send(JSON.stringify({ cmd }))
       }),
   )
@@ -184,12 +192,17 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
   await query(`writestack[\`${name}; "${jsonStr}"]`)
 }
 
-export async function cloneStack(_name: string, _newName: string): Promise<Stack> {
-  throw new Error('cloneStack not yet supported via direct q connection')
+export async function renameStack(name: string, newName: string): Promise<void> {
+  await query(`renamestack[\`${name};\`${newName}]`)
 }
 
-export async function deleteStack(_name: string): Promise<void> {
-  throw new Error('deleteStack not yet supported via direct q connection')
+export async function cloneStack(name: string, newName: string): Promise<Stack> {
+  await query(`clonestack[\`${name};\`${newName}]`)
+  return getStack(newName)
+}
+
+export async function deleteStack(name: string): Promise<void> {
+  await query(`deletestack[\`${name}]`)
 }
 
 // ─── Process control ──────────────────────────────────────────────────────────

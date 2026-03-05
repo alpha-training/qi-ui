@@ -162,9 +162,16 @@ import {
             const logRows = rows as realApi.StreamLogEntry[]
             for (const l of logRows) {
               const procName = l.name?.split('.')[0] ?? 'system'
-              const raw = l.level?.toLowerCase() ?? 'info'
-              const level: LogEntry['level'] = raw === 'fatal' ? 'fatal' : raw === 'error' ? 'error' : 'info'
-              addLog(procName, level, l.lines ?? '')
+              const lines = Array.isArray(l.lines) ? l.lines : [l.lines ?? '']
+              for (const line of lines) {
+                if (!line.trim()) continue
+                // Line format: "2026.03.05D16:36:03.000000000 info 0 message here"
+                const parts = line.split(' ')
+                const rawLevel = parts[1]?.toLowerCase() ?? 'info'
+                const level: LogEntry['level'] = rawLevel === 'fatal' ? 'fatal' : rawLevel === 'error' ? 'error' : 'info'
+                const msg = parts.slice(3).join(' ')
+                addLog(procName, level, msg || line)
+              }
             }
           }
         },
@@ -204,26 +211,36 @@ import {
 
     const startAll = useCallback(async (stackName: string) => {
       const api = connType === 'q' ? qApi : realApi
+      const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
         await api.startAll(stackName)
+        addLog('system', 'info', `All processes started in ${stackName}`)
       } catch {
-        const procs = Object.keys(stacks[stackName]?.processes ?? {})
         await Promise.allSettled(procs.map(p => mock.startProcess(stackName, p)))
         addLog('system', 'error', `(offline) All processes started locally in ${stackName}`)
       }
-      addLog('system', 'info', `All processes started in ${stackName}`)
+      // Optimistic update — stream will correct any that fail to start
+      setStatuses(s => ({
+        ...s,
+        [stackName]: Object.fromEntries(procs.map(p => [p, 'running' as const])),
+      }))
     }, [stacks, addLog, connType])
 
     const stopAll = useCallback(async (stackName: string) => {
       const api = connType === 'q' ? qApi : realApi
+      const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
         await api.stopAll(stackName)
+        addLog('system', 'info', `All processes stopped in ${stackName}`)
       } catch {
-        const procs = Object.keys(stacks[stackName]?.processes ?? {})
         await Promise.allSettled(procs.map(p => mock.stopProcess(stackName, p)))
         addLog('system', 'error', `(offline) All processes stopped locally in ${stackName}`)
       }
-      addLog('system', 'info', `All processes stopped in ${stackName}`)
+      // Optimistic update — stream will correct any still running
+      setStatuses(s => ({
+        ...s,
+        [stackName]: Object.fromEntries(procs.map(p => [p, 'stopped' as const])),
+      }))
     }, [stacks, addLog, connType])
 
     // ── Stack CRUD ───────────────────────────────────────────────────────────
@@ -243,19 +260,18 @@ import {
     }, [addLog, connType])
 
     const renameStack = useCallback(async (oldName: string, newName: string) => {
-      // For api type: compose from saveStack + deleteStack (no dedicated rename endpoint needed)
-      // For q type: falls back to mock (hub has no deletestack yet)
-      if (connType === 'api') {
-        try {
+      try {
+        if (connType === 'q') {
+          await qApi.renameStack(oldName, newName)
+        } else {
           await realApi.saveStack(newName, stacks[oldName])
           await realApi.deleteStack(oldName)
-          addLog('system', 'info', `Stack "${oldName}" renamed to "${newName}"`)
-        } catch {
-          addLog('system', 'error', `Failed to rename stack on backend`)
         }
-      } else {
+        addLog('system', 'info', `Stack "${oldName}" renamed to "${newName}"`)
+      } catch {
         await mock.createStack(newName, stacks[oldName])
         await mock.deleteStack(oldName)
+        addLog('system', 'error', `Stack renamed locally (backend offline)`)
       }
       setStacks(s => {
         const ns = { ...s, [newName]: s[oldName] }
