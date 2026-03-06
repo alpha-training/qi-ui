@@ -133,6 +133,18 @@
 :root.light .hover\:bg-green-500\/10:hover  { background-color: rgba(21,128,61,0.12)  !important; }
 :root.light .hover\:bg-orange-500\/10:hover { background-color: rgba(194,65,12,0.12)  !important; }
 
+:root.light .fill-green-400  { fill: #15803d !important; }
+:root.light .fill-orange-400 { fill: #c2410c !important; }
+
+:root.light .bg-amber-400    { background-color: #b45309 !important; }
+:root.light .text-amber-400  { color: #92400e !important; }
+
+:root.light .bg-red-400      { background-color: #dc2626 !important; }
+:root.light .text-red-400    { color: #b91c1c !important; }
+
+:root.light .shadow-\[0_0_6px_\#4ade80\] { box-shadow: 0 0 5px #16a34a !important; }
+:root.light .shadow-\[0_0_6px_\#fbbf24\] { box-shadow: 0 0 5px #b45309 !important; }
+
 /* ReactFlow pane: arrow cursor instead of grab — must be outside @layer to beat ReactFlow's CSS */
 .react-flow__pane,
 .react-flow__pane.draggable,

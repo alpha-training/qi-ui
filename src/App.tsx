@@ -7,7 +7,6 @@ import ControlPage from './pages/ControlPage'
 import ConnectionDropdown from './components/ConnectionDropdown'
 import { X, Wifi } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ApiStatus() {
   const { connected } = useControl()
   return (
@@ -72,7 +71,7 @@ function OnboardingModal() {
 
           {/* Connection type */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500 w-16 shrink-0">Type</span>
+            <span className="text-xs text-[var(--text-dimmed)] w-16 shrink-0">Type</span>
             <div className="flex gap-4">
               {(['q', 'api'] as const).map(t => (
                 <label key={t} className="flex items-center gap-1.5 cursor-pointer">
@@ -84,7 +83,7 @@ function OnboardingModal() {
                     onChange={() => setForm(f => ({ ...f, connType: t }))}
                     className="accent-blue-500"
                   />
-                  <span className="text-xs text-zinc-300 font-mono">{t}</span>
+                  <span className="text-xs text-[var(--text-secondary)] font-mono">{t}</span>
                 </label>
               ))}
             </div>
@@ -92,7 +91,7 @@ function OnboardingModal() {
 
           {onboardingFields.map(field => (
             <div key={field.key} className="flex items-center gap-2">
-              <label className="text-xs text-zinc-500 w-16 shrink-0">
+              <label className="text-xs text-[var(--text-dimmed)] w-16 shrink-0">
                 {field.label}
                 {field.required && <span className="text-red-400">*</span>}
               </label>
@@ -102,13 +101,13 @@ function OnboardingModal() {
                 value={form[field.key]}
                 onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
                 onKeyDown={e => e.key === 'Enter' && handleConnect()}
-                className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                className="flex-1 bg-[var(--bg-input)] border border-[var(--border)] rounded px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-blue-500/50 transition-colors"
               />
             </div>
           ))}
           <div className="flex gap-2 pt-2">
             <button onClick={() => setDismissed(true)}
-              className="flex-1 py-2 text-xs text-zinc-400 hover:text-white border border-white/10 rounded-lg transition-colors">
+              className="flex-1 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-lg transition-colors">
               Skip for now
             </button>
             <button
@@ -133,7 +132,7 @@ function AppShell() {
           <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--border)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-3">
               <span className="font-bold text-xl text-[var(--text-primary)]">Control</span>
-              {/* <ApiStatus /> */}
+              <ApiStatus />
             </div>
             <ConnectionDropdown />
           </header>

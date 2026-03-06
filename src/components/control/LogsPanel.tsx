@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownToLine } from 'lucide-react'
+import { ChevronsDown } from 'lucide-react'
 import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
@@ -77,7 +77,7 @@ export default function LogsPanel() {
             onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
             title="Scroll to latest"
             className="text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] transition-colors">
-            <ArrowDownToLine size={13} />
+            <ChevronsDown size={13} />
           </button>
         </div>
       </div>
