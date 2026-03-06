@@ -195,12 +195,34 @@ import {
 
     // ── Process control ──────────────────────────────────────────────────────
 
+    // After sending up/down, wait briefly then query real statuses to correct any wrong optimistic updates
+    const refreshStatuses = useCallback(() => {
+      if (connType !== 'q') return
+      setTimeout(async () => {
+        try {
+          const rows = await qApi.getStatuses()
+          if (!Array.isArray(rows) || rows.length === 0) return
+          setStatuses(prev => {
+            const next = { ...prev }
+            for (const p of rows) {
+              if (!p.stackname || !p.name) continue
+              const procName = p.name.split('.')[0]
+              const status: ProcessStatus = p.status === 'up' || p.status === 'busy' ? 'running' : 'stopped'
+              next[p.stackname] = { ...next[p.stackname], [procName]: status }
+            }
+            return next
+          })
+        } catch { /* stream will correct eventually */ }
+      }, 2000)
+    }, [connType])
+
     const startProcess = useCallback(async (stackName: string, proc: string) => {
       const api = connType === 'q' ? qApi : realApi
       try {
         await api.startProcess(stackName, proc)
         setStatus(stackName, proc, 'running')
         addLog(proc, 'info', `${proc} started`)
+        refreshStatuses()
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('invalid process name')) {
@@ -233,19 +255,14 @@ import {
 
     const startAll = useCallback(async (stackName: string) => {
       const api = connType === 'q' ? qApi : realApi
-      const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
         await api.startAll(stackName)
         addLog('system', 'info', `All processes started in ${stackName}`)
-        // Update individual statuses (merge, not replace) to avoid triggering full nodes recompute
-        setStatuses(s => ({
-          ...s,
-          [stackName]: { ...s[stackName], ...Object.fromEntries(procs.map(p => [p, 'running' as const])) },
-        }))
+        refreshStatuses()  // show real statuses after a short delay — no optimistic update to avoid flicker
       } catch {
         addLog('system', 'error', `Start all failed for ${stackName}`)
       }
-    }, [stacks, addLog, connType])
+    }, [addLog, connType, refreshStatuses])
 
     const stopAll = useCallback(async (stackName: string) => {
       const api = connType === 'q' ? qApi : realApi
@@ -314,10 +331,10 @@ import {
         const cloned = await api.cloneStack(name, newName)
         setStacks(s => ({ ...s, [newName]: cloned }))
         addLog('system', 'info', `Stack "${name}" cloned as "${newName}"`)
-      } catch {
-        await mock.cloneStack(name, newName)
-        setStacks(s => ({ ...s, [newName]: { ...structuredClone(s[name]), description: newName } }))
-        addLog('system', 'error', `Stack "${newName}" cloned locally (backend offline)`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog('system', 'error', `Clone failed: ${msg}`)
+        return
       }
       setStackOrder(o => [...o, newName])
       setActiveStack(newName)

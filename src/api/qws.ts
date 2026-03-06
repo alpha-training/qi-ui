@@ -207,10 +207,12 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
     await query(`writestack[\`${name}; "${jsonStr}"]`)
   } catch {
     // Hub may error on the post-write reload step but still have written the file.
-    // Verify by reading back — if it succeeds, the write worked.
+    // Verify by reading back — and check the process names match what we sent.
     const written = await getStack(name).catch(() => null)
     if (!written) throw new Error('writestack failed and stack could not be verified')
-    // File confirmed written — ignore the reload error
+    const sentKeys    = Object.keys(stack.processes).sort().join(',')
+    const writtenKeys = Object.keys(written.processes).sort().join(',')
+    if (sentKeys !== writtenKeys) throw new Error('writestack: file was not updated (hub may need restart)')
   }
 }
 
@@ -219,7 +221,13 @@ export async function renameStack(name: string, newName: string): Promise<void> 
 }
 
 export async function cloneStack(name: string, newName: string): Promise<Stack> {
-  await query(`clonestack[\`${name};\`${newName}]`)
+  try {
+    await query(`clonestack[\`${name};\`${newName}]`)
+  } catch {
+    // Hub may error on reload step but still have written the clone file — verify
+    const written = await getStack(newName).catch(() => null)
+    if (!written) throw new Error('clonestack failed and clone could not be verified')
+  }
   return getStack(newName)
 }
 
