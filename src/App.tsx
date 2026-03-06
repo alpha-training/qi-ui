@@ -7,6 +7,7 @@ import ControlPage from './pages/ControlPage'
 import ConnectionDropdown from './components/ConnectionDropdown'
 import { X, Wifi } from 'lucide-react'
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ApiStatus() {
   const { connected } = useControl()
   return (
@@ -132,7 +133,7 @@ function AppShell() {
           <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--border)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-3">
               <span className="font-bold text-xl text-[var(--text-primary)]">Control</span>
-              <ApiStatus />
+              {/* <ApiStatus /> */}
             </div>
             <ConnectionDropdown />
           </header>

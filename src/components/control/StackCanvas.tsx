@@ -68,6 +68,7 @@ export default function StackCanvas() {
         onPaneClick={onPaneClick}
         fitView
         fitViewOptions={{ padding: 0.15, minZoom: 0.8, maxZoom: 1.5 }}
+        onInit={rf => setTimeout(() => rf.fitView({ padding: 0.15, minZoom: 0.8, maxZoom: 1.5 }), 50)}
         minZoom={0.3}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
@@ -75,7 +76,7 @@ export default function StackCanvas() {
         <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="var(--dots-color)" />
         <Controls
           showInteractive={false}
-          className="!bg-[var(--bg-node)] !border-[var(--border-node)] !shadow-none [&>button]:!bg-[var(--bg-node)] [&>button]:!border-[var(--border-node)] [&>button]:!text-white [&>button:hover]:!bg-[var(--bg-node-hover)] [&>button>svg]:!fill-white"
+          className="!bg-[var(--bg-node)] !border-[var(--border-node)] !shadow-none [&>button]:!bg-[var(--bg-node)] [&>button]:!border-[var(--border-node)] [&>button]:!text-[var(--text-primary)] [&>button:hover]:!bg-[var(--bg-node-hover)] [&>button>svg]:!fill-[var(--text-primary)]"
         />
       </ReactFlow>
 

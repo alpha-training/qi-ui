@@ -104,14 +104,34 @@
   /* Text */
   --text-primary:   #1e293b;
   --text-secondary: #334155;
-  --text-muted:     #64748b;
-  --text-dimmed:    #94a3b8;
+  --text-muted:     #475569;
+  --text-dimmed:    #64748b;
   --text-faint:     #94a3b8;
 
   /* Scrollbars */
   --scrollbar-thumb:       #93c5fd;
   --scrollbar-thumb-hover: #60a5fa;
 }
+
+/* ── Light mode: status + action button colour overrides ────────── */
+:root.light .bg-green-400  { background-color: #16a34a !important; }
+:root.light .bg-yellow-400 { background-color: #ca8a04 !important; }
+:root.light .bg-red-500    { background-color: #dc2626 !important; }
+:root.light .text-red-300  { color: #b91c1c !important; }
+
+:root.light .shadow-\[0_0_7px_\#4ade80\] { box-shadow: 0 0 6px #16a34a !important; }
+:root.light .shadow-\[0_0_7px_\#facc15\] { box-shadow: 0 0 6px #ca8a04 !important; }
+:root.light .shadow-\[0_0_7px_\#f87171\] { box-shadow: 0 0 6px #dc2626 !important; }
+
+:root.light .text-green-400  { color: #15803d !important; }
+:root.light .text-yellow-400 { color: #a16207 !important; }
+:root.light .text-orange-400 { color: #c2410c !important; }
+
+:root.light .border-green-500\/70  { border-color: rgba(21,128,61,0.8)   !important; }
+:root.light .border-orange-500\/70 { border-color: rgba(194,65,12,0.8)   !important; }
+
+:root.light .hover\:bg-green-500\/10:hover  { background-color: rgba(21,128,61,0.12)  !important; }
+:root.light .hover\:bg-orange-500\/10:hover { background-color: rgba(194,65,12,0.12)  !important; }
 
 /* ReactFlow pane: arrow cursor instead of grab — must be outside @layer to beat ReactFlow's CSS */
 .react-flow__pane,

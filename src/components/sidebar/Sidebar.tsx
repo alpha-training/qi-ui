@@ -21,9 +21,8 @@ export default function Sidebar() {
   return (
     <aside className="w-40 bg-[var(--bg-surface)] border-r border-[var(--border)] flex flex-col shrink-0">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-4 border-b border-[var(--border)]">
-        <div className="w-7 h-7 rounded bg-blue-500 flex items-center justify-center text-white font-bold text-sm">α</div>
-        <span className="font-semibold text-base tracking-wide text-[var(--text-primary)]">qi</span>
+      <div className="flex items-center px-4 py-3 border-b border-[var(--border)]">
+        <img src="/qi-logo.svg" alt="qi" className="h-8" />
       </div>
 
       {/* Nav */}
