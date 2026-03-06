@@ -1,4 +1,4 @@
-import type { Stack, Process, GraphNode, GraphEdge, ProcessRuntime } from '../types'
+import type { Stack, Process, GraphNode, GraphEdge, ProcessRuntime, ProcessStatus } from '../types'
 import { PKG_LAYER, LAYOUT } from '../config'
 
 // ─── Auto-naming ──────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ export function resolvePort(stack: Stack, proc: Process): number {
 
 export function buildRuntimeList(
   stack: Stack,
-  statuses: Record<string, 'running' | 'stopped'>,
+  statuses: Record<string, ProcessStatus>,
 ): ProcessRuntime[] {
   return Object.entries(stack.processes).map(([name, proc]) => ({
     name,
@@ -57,7 +57,7 @@ function layerNodes(processes: Record<string, Process>): Record<string, { x: num
 
 export function deriveGraphNodes(
   stack: Stack,
-  statuses: Record<string, 'running' | 'stopped'>,
+  statuses: Record<string, ProcessStatus>,
 ): GraphNode[] {
   const positions = layerNodes(stack.processes)
   return Object.entries(stack.processes).map(([name, proc]) => ({

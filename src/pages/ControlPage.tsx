@@ -23,7 +23,7 @@ export default function ControlPage() {
     viewMode, setViewMode,
     addStack, renameStack, cloneStack, deleteStack, saveStack,
     startAll, stopAll, startProcess, stopProcess,
-    statuses, jsonStatus, stacksLoading,
+    statuses, jsonStatus, stacksLoading, statusesLoading,
   } = useControl()
 
   const [showMenu, setShowMenu]         = useState(false)
@@ -83,12 +83,12 @@ export default function ControlPage() {
     addStack(name, { description, base_port: basePort, processes: {} })
   }
 
-  if (stacksLoading) {
+  if (stacksLoading || statusesLoading) {
     return (
       <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)]">
         <div className="flex items-center gap-3 text-[var(--text-dimmed)] text-sm">
           <div className="w-4 h-4 border-2 border-[var(--border)] border-t-[#3b82f6] rounded-full animate-spin" />
-          Connecting…
+          {stacksLoading ? 'Loading stacks…' : 'Loading statuses…'}
         </div>
       </div>
     )

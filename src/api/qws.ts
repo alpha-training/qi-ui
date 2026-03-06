@@ -170,11 +170,18 @@ export async function getStacks(): Promise<Record<string, Stack>> {
   // in the ui/ subdirectory that aren't in .proc.stacks startup snapshot).
   // Split by "/" to extract filename, works for any path format (hsym or relative sym).
   let names: string[]
+  const fsQuery = '{-5_last "/" vs string x} each .qi.paths[.conf.STACKS;"*.json"]'
   try {
-    names = await query<string[]>('{-5_last "/" vs string x} each .qi.paths[.conf.STACKS;"*.json"]')
+    names = await query<string[]>(fsQuery, 10000)
   } catch {
-    // Fallback: startup snapshot only (won't include newly created stacks)
-    names = await query<string[]>('string 1_key .proc.stacks')
+    // Retry once after a short delay before falling back to startup snapshot
+    await new Promise(r => setTimeout(r, 1500))
+    try {
+      names = await query<string[]>(fsQuery, 10000)
+    } catch {
+      // Final fallback: startup snapshot only (won't include newly created stacks)
+      names = await query<string[]>('string 1_key .proc.stacks')
+    }
   }
   if (!Array.isArray(names) || names.length === 0) throw new Error('No stacks found')
   const entries = (await Promise.all(
@@ -195,11 +202,18 @@ export async function getStack(name: string): Promise<Stack> {
 }
 
 export async function saveStack(name: string, stack: Stack): Promise<void> {
-  // Compact JSON, escaped for a q string literal.
-  // Wrapped with `enlist` so kdb+ sees a list of strings (not a char vector),
-  // which is what `p 0:` needs to write a single-line JSON file.
   const jsonStr = JSON.stringify(stack).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  await query(`writestack[\`${name}; enlist "${jsonStr}"]`)
+  try {
+    await query(`writestack[\`${name}; "${jsonStr}"]`)
+  } catch {
+    // Hub may error on the post-write reload step but still have written the file.
+    // Verify by reading back — and check the process names match what we sent.
+    const written = await getStack(name).catch(() => null)
+    if (!written) throw new Error('writestack failed and stack could not be verified')
+    const sentKeys    = Object.keys(stack.processes).sort().join(',')
+    const writtenKeys = Object.keys(written.processes).sort().join(',')
+    if (sentKeys !== writtenKeys) throw new Error('writestack: file was not updated (hub may need restart)')
+  }
 }
 
 export async function renameStack(name: string, newName: string): Promise<void> {
@@ -207,12 +221,24 @@ export async function renameStack(name: string, newName: string): Promise<void> 
 }
 
 export async function cloneStack(name: string, newName: string): Promise<Stack> {
-  await query(`clonestack[\`${name};\`${newName}]`)
+  try {
+    await query(`clonestack[\`${name};\`${newName}]`)
+  } catch {
+    // Hub may error on reload step but still have written the clone file — verify
+    const written = await getStack(newName).catch(() => null)
+    if (!written) throw new Error('clonestack failed and clone could not be verified')
+  }
   return getStack(newName)
 }
 
 export async function deleteStack(name: string): Promise<void> {
   await query(`deletestack[\`${name}]`)
+}
+
+// ─── Current process statuses (one-shot query, not stream) ───────────────────
+
+export async function getStatuses(): Promise<Array<{ name: string; stackname: string; status: string }>> {
+  return query('select name,stackname,status from procs')
 }
 
 // ─── Process control ──────────────────────────────────────────────────────────

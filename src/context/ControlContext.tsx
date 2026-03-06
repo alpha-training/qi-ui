@@ -25,7 +25,8 @@ import {
     jsonStatus: JsonStatus
     setJsonStatus: (s: JsonStatus) => void
     connected: boolean   // true = qi-cli API is reachable
-    stacksLoading: boolean  // true while waiting for real stacks to arrive
+    stacksLoading: boolean    // true while waiting for real stacks to arrive
+    statusesLoading: boolean  // true until first stream push with process statuses
 
     // Stack actions
     addStack: (name: string, stack: Stack) => Promise<void>
@@ -58,12 +59,14 @@ import {
     const [jsonStatus, setJsonStatus] = useState<JsonStatus>('valid')
     const [connected, setConnected] = useState(false)
     const [stacksLoading, setStacksLoading] = useState(true)
+    const [statusesLoading, setStatusesLoading] = useState(true)
     const hasRealStacksRef = useRef(false)
 
     // ── Re-initialise when connection changes ────────────────────────────────
     useEffect(() => {
       hasRealStacksRef.current = false
       setStacksLoading(true)
+      setStatusesLoading(true)
       setStacks({})
       setStackOrder([])
       setActiveStack('')
@@ -80,17 +83,44 @@ import {
       api.ping().then(ok => setConnected(ok))
     }, [apiBase, connType])
 
+    // ── Statuses timeout: if stream hasn't pushed within 3s of stacks loading, unblock UI ─
+    useEffect(() => {
+      if (!stacksLoading) {
+        const t = setTimeout(() => setStatusesLoading(false), 3000)
+        return () => clearTimeout(t)
+      }
+    }, [stacksLoading])
+
     // ── Load stacks: try real API first, fall back to mock ───────────────────
     useEffect(() => {
       const api = connType === 'q' ? qApi : realApi
       api.getStacks()
-        .then(s => {
+        .then(async s => {
           hasRealStacksRef.current = true
           setStacks(s)
           const order = Object.keys(s)
           setStackOrder(order)
           setActiveStack(order[0] ?? '')
           setStacksLoading(false)
+          // Query current statuses immediately — don't wait for the hub's cron push
+          if (connType === 'q') {
+            try {
+              const rows = await qApi.getStatuses()
+              if (Array.isArray(rows) && rows.length > 0) {
+                setStatuses(prev => {
+                  const next = { ...prev }
+                  for (const p of rows) {
+                    if (!p.stackname || !p.name) continue
+                    const procName = p.name.split('.')[0]
+                    const status: ProcessStatus = p.status === 'up' || p.status === 'busy' ? 'running' : 'stopped'
+                    next[p.stackname] = { ...next[p.stackname], [procName]: status }
+                  }
+                  return next
+                })
+                setStatusesLoading(false)
+              }
+            } catch { /* stream will populate statuses */ }
+          }
         })
         .catch(() => {
           // Wait 3s for stream to deliver real stacks before falling back to mock
@@ -137,6 +167,7 @@ import {
               }
               return next
             })
+            setStatusesLoading(false)
           } else if (tableName === 'Logs') {
             const logRows = rows as realApi.StreamLogEntry[]
             for (const l of logRows) {
@@ -164,12 +195,34 @@ import {
 
     // ── Process control ──────────────────────────────────────────────────────
 
+    // After sending up/down, wait briefly then query real statuses to correct any wrong optimistic updates
+    const refreshStatuses = useCallback(() => {
+      if (connType !== 'q') return
+      setTimeout(async () => {
+        try {
+          const rows = await qApi.getStatuses()
+          if (!Array.isArray(rows) || rows.length === 0) return
+          setStatuses(prev => {
+            const next = { ...prev }
+            for (const p of rows) {
+              if (!p.stackname || !p.name) continue
+              const procName = p.name.split('.')[0]
+              const status: ProcessStatus = p.status === 'up' || p.status === 'busy' ? 'running' : 'stopped'
+              next[p.stackname] = { ...next[p.stackname], [procName]: status }
+            }
+            return next
+          })
+        } catch { /* stream will correct eventually */ }
+      }, 2000)
+    }, [connType])
+
     const startProcess = useCallback(async (stackName: string, proc: string) => {
       const api = connType === 'q' ? qApi : realApi
       try {
         await api.startProcess(stackName, proc)
         setStatus(stackName, proc, 'running')
         addLog(proc, 'info', `${proc} started`)
+        refreshStatuses()
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('invalid process name')) {
@@ -202,20 +255,14 @@ import {
 
     const startAll = useCallback(async (stackName: string) => {
       const api = connType === 'q' ? qApi : realApi
-      const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
         await api.startAll(stackName)
         addLog('system', 'info', `All processes started in ${stackName}`)
+        refreshStatuses()  // show real statuses after a short delay — no optimistic update to avoid flicker
       } catch {
-        await Promise.allSettled(procs.map(p => mock.startProcess(stackName, p)))
-        addLog('system', 'error', `(offline) All processes started locally in ${stackName}`)
+        addLog('system', 'error', `Start all failed for ${stackName}`)
       }
-      // Optimistic update — stream will correct any that fail to start
-      setStatuses(s => ({
-        ...s,
-        [stackName]: Object.fromEntries(procs.map(p => [p, 'running' as const])),
-      }))
-    }, [stacks, addLog, connType])
+    }, [addLog, connType, refreshStatuses])
 
     const stopAll = useCallback(async (stackName: string) => {
       const api = connType === 'q' ? qApi : realApi
@@ -223,15 +270,13 @@ import {
       try {
         await api.stopAll(stackName)
         addLog('system', 'info', `All processes stopped in ${stackName}`)
+        setStatuses(s => ({
+          ...s,
+          [stackName]: { ...s[stackName], ...Object.fromEntries(procs.map(p => [p, 'stopped' as const])) },
+        }))
       } catch {
-        await Promise.allSettled(procs.map(p => mock.stopProcess(stackName, p)))
-        addLog('system', 'error', `(offline) All processes stopped locally in ${stackName}`)
+        addLog('system', 'error', `Stop all failed for ${stackName}`)
       }
-      // Optimistic update — stream will correct any still running
-      setStatuses(s => ({
-        ...s,
-        [stackName]: Object.fromEntries(procs.map(p => [p, 'stopped' as const])),
-      }))
     }, [stacks, addLog, connType])
 
     // ── Stack CRUD ───────────────────────────────────────────────────────────
@@ -244,9 +289,10 @@ import {
       try {
         await api.saveStack(name, stack)
         addLog('system', 'info', `Stack "${name}" created`)
-      } catch {
+      } catch (e) {
         await mock.createStack(name, stack)
-        addLog('system', 'error', `Stack "${name}" created locally (backend offline)`)
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog('system', 'error', `Stack "${name}" save failed: ${msg}`)
       }
     }, [addLog, connType])
 
@@ -259,10 +305,11 @@ import {
           await realApi.deleteStack(oldName)
         }
         addLog('system', 'info', `Stack "${oldName}" renamed to "${newName}"`)
-      } catch {
-        await mock.createStack(newName, stacks[oldName])
-        await mock.deleteStack(oldName)
-        addLog('system', 'error', `Stack renamed locally (backend offline)`)
+      } catch (e) {
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = raw.replace(/^kdb error:\s*/i, '')
+        addLog('system', 'error', `Rename failed: ${msg}`)
+        return   // don't update local state — backend rejected the rename
       }
       setStacks(s => {
         const ns = { ...s, [newName]: s[oldName] }
@@ -284,10 +331,10 @@ import {
         const cloned = await api.cloneStack(name, newName)
         setStacks(s => ({ ...s, [newName]: cloned }))
         addLog('system', 'info', `Stack "${name}" cloned as "${newName}"`)
-      } catch {
-        await mock.cloneStack(name, newName)
-        setStacks(s => ({ ...s, [newName]: { ...structuredClone(s[name]), description: newName } }))
-        addLog('system', 'error', `Stack "${newName}" cloned locally (backend offline)`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog('system', 'error', `Clone failed: ${msg}`)
+        return
       }
       setStackOrder(o => [...o, newName])
       setActiveStack(newName)
@@ -337,7 +384,7 @@ import {
         selectedProc, setSelectedProc,
         statuses, viewMode, setViewMode, logs,
         jsonStatus, setJsonStatus,
-        connected, stacksLoading,
+        connected, stacksLoading, statusesLoading,
         addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal,
         startProcess, stopProcess, startAll, stopAll,
       }}>

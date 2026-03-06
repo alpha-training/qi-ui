@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="grad-qi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#6b9dc2"/>
+      <stop offset="100%" stop-color="#1e3f62"/>
+    </linearGradient>
+    <linearGradient id="grad-paren" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#c4a07a"/>
+      <stop offset="100%" stop-color="#6b4c2a"/>
+    </linearGradient>
+  </defs>
+  <text
+    x="1" y="26"
+    font-family="Georgia, 'Palatino Linotype', Palatino, serif"
+    font-size="26"
+    font-weight="400"
+  >
+    <tspan fill="url(#grad-qi)">qi</tspan><tspan fill="url(#grad-paren)">)</tspan>
+  </text>
+</svg>

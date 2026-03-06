@@ -7,8 +7,7 @@ import { Play, Square } from 'lucide-react'
 
 export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRuntime>) {
   const { activeStack, startProcess, stopProcess } = useControl()
-  const isRunning = data.status === 'running'
-  const isBusy = data.status === 'busy'
+  const isActive  = data.status === 'running' || data.status === 'busy'
 
   const handleStart = (e: React.MouseEvent) => { e.stopPropagation(); startProcess(activeStack, data.name) }
   const handleStop  = (e: React.MouseEvent) => { e.stopPropagation(); stopProcess(activeStack, data.name) }
@@ -29,18 +28,16 @@ export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRu
         <div className="flex items-center justify-between mb-2.5">
           <span className="text-[var(--text-primary)] font-semibold text-sm leading-tight">{data.name}</span>
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ml-2
-            ${isRunning
-              ? 'bg-green-400 shadow-[0_0_7px_#4ade80]'
-              : isBusy
-              ? 'bg-yellow-400 shadow-[0_0_7px_#facc15]'
-              : 'bg-red-500 shadow-[0_0_7px_#f87171]'}`} />
+            ${data.status === 'running' ? 'bg-green-400 shadow-[0_0_7px_#4ade80]'
+            : data.status === 'busy' ? 'bg-yellow-400 shadow-[0_0_7px_#facc15]'
+            : 'bg-red-500 shadow-[0_0_7px_#f87171]'}`} />
         </div>
 
         {/* Port + button row */}
         <div className="flex items-center justify-between min-h-[26px]">
           <span className="text-xs text-[var(--node-port-text)]">{data.port}</span>
           <div className="w-[72px] flex justify-end">
-            {isRunning ? (
+            {isActive ? (
               <button onClick={handleStop}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-orange-500/70
                   text-orange-400 text-xs font-medium hover:bg-orange-500/10 transition-colors
