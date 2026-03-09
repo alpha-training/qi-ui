@@ -209,10 +209,11 @@ export function CloneStackModal({
 // ─── Rename Stack Modal ───────────────────────────────────────────────────────
 
 export function RenameStackModal({
-  stackName, existingNames, onRename, onClose,
+  stackName, existingNames, hasRunningProcesses, onRename, onClose,
 }: {
   stackName: string
   existingNames: string[]
+  hasRunningProcesses: boolean
   onRename: (newName: string) => void
   onClose: () => void
 }) {
@@ -233,9 +234,15 @@ export function RenameStackModal({
   return (
     <Modal title={`Rename "${stackName}"`} icon={<Pencil size={15} className="text-blue-400" />} onClose={onClose}>
       <div className="space-y-4">
+        {hasRunningProcesses && (
+          <div className="flex gap-3 p-3 bg-amber-900/20 border border-amber-800/40 rounded-lg">
+            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-300">Stop all processes before renaming this stack.</p>
+          </div>
+        )}
         <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
-          onEnter={handleConfirm} placeholder="New name" error={error} autoFocus />
-        <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Rename" />
+          onEnter={!hasRunningProcesses ? handleConfirm : undefined} placeholder="New name" error={error} autoFocus />
+        <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Rename" disabled={hasRunningProcesses} />
       </div>
     </Modal>
   )

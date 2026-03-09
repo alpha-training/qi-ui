@@ -197,42 +197,56 @@ export async function getStacks(): Promise<Record<string, Stack>> {
 export async function getStack(name: string): Promise<Stack> {
   // readstack returns read0 of the JSON file — an array of strings (one per line)
   const lines = await query<string | string[]>(`readstack[\`${name}]`)
+  console.log(`[getStack] "${name}" raw lines:`, Array.isArray(lines) ? `array[${(lines as string[]).length}]` : `string[${(lines as string).length}]`, JSON.stringify(lines).slice(0, 200))
   const json = Array.isArray(lines) ? lines.join('\n') : lines
   return JSON.parse(json) as Stack
+}
+
+async function triggerUpdate(): Promise<void> {
+  await query('updAPI[]').catch(() => { /* best-effort */ })
 }
 
 export async function saveStack(name: string, stack: Stack): Promise<void> {
   const jsonStr = JSON.stringify(stack).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   try {
-    await query(`writestack[\`${name}; "${jsonStr}"]`)
-  } catch {
-    // Hub may error on the post-write reload step but still have written the file.
-    // Verify by reading back — and check the process names match what we sent.
-    const written = await getStack(name).catch(() => null)
-    if (!written) throw new Error('writestack failed and stack could not be verified')
+    await query(`writestack[\`${name}; enlist "${jsonStr}"]`)
+  } catch (err) {
+    // Hub may throw on post-write reload step but file is still written — verify
+    const hubErr = err instanceof Error ? err.message : String(err)
+    console.warn(`[saveStack] hub error for "${name}":`, hubErr)
+    const written = await getStack(name).catch(e2 => { console.warn(`[saveStack] getStack failed:`, e2); return null })
+    if (!written) throw new Error(`writestack failed (${hubErr})`)
     const sentKeys    = Object.keys(stack.processes).sort().join(',')
     const writtenKeys = Object.keys(written.processes).sort().join(',')
-    if (sentKeys !== writtenKeys) throw new Error('writestack: file was not updated (hub may need restart)')
+    if (sentKeys !== writtenKeys) throw new Error(`writestack: content not updated (${hubErr})`)
   }
+  await triggerUpdate()
 }
 
 export async function renameStack(name: string, newName: string): Promise<void> {
-  await query(`renamestack[\`${name};\`${newName}]`)
+  try {
+    await query(`renamestack[\`${name};\`${newName}]`)
+  } catch {
+    const written = await getStack(newName).catch(() => null)
+    if (!written) throw new Error('renamestack failed and could not be verified')
+  }
+  await triggerUpdate()
 }
 
 export async function cloneStack(name: string, newName: string): Promise<Stack> {
   try {
     await query(`clonestack[\`${name};\`${newName}]`)
   } catch {
-    // Hub may error on reload step but still have written the clone file — verify
     const written = await getStack(newName).catch(() => null)
     if (!written) throw new Error('clonestack failed and clone could not be verified')
   }
+  await triggerUpdate()
   return getStack(newName)
 }
 
 export async function deleteStack(name: string): Promise<void> {
   await query(`deletestack[\`${name}]`)
+  await triggerUpdate()
 }
 
 // ─── Current process statuses (one-shot query, not stream) ───────────────────

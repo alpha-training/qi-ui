@@ -98,7 +98,7 @@ import {
         .then(async s => {
           hasRealStacksRef.current = true
           setStacks(s)
-          const order = Object.keys(s)
+          const order = Object.keys(s).sort()
           setStackOrder(order)
           setActiveStack(order[0] ?? '')
           setStacksLoading(false)
@@ -128,7 +128,7 @@ import {
             if (hasRealStacksRef.current) return
             mock.getStacks().then(s => {
               setStacks(s)
-              const order = Object.keys(s)
+              const order = Object.keys(s).sort()
               setStackOrder(order)
               setActiveStack(order[0] ?? '')
               setStacksLoading(false)
@@ -284,7 +284,7 @@ import {
     const addStack = useCallback(async (name: string, stack: Stack) => {
       const api = connType === 'q' ? qApi : realApi
       setStacks(s => ({ ...s, [name]: stack }))
-      setStackOrder(o => [...o, name])
+      setStackOrder(o => [...o, name].sort())
       setActiveStack(name)
       try {
         await api.saveStack(name, stack)
@@ -316,7 +316,7 @@ import {
         delete ns[oldName]
         return ns
       })
-      setStackOrder(o => o.map(n => n === oldName ? newName : n))
+      setStackOrder(o => o.map(n => n === oldName ? newName : n).sort())
       setStatuses(s => {
         const ns = { ...s, [newName]: s[oldName] ?? {} }
         delete ns[oldName]
@@ -336,7 +336,7 @@ import {
         addLog('system', 'error', `Clone failed: ${msg}`)
         return
       }
-      setStackOrder(o => [...o, newName])
+      setStackOrder(o => [...o, newName].sort())
       setActiveStack(newName)
     }, [addLog, connType])
 
