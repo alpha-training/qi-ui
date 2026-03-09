@@ -29,6 +29,10 @@ export default function StackCanvas() {
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
 
+  // Changing when processes are added/removed forces ReactFlow to remount + re-fit.
+  // Changing only process properties (port, pkg) updates in-place — no remount.
+  const graphKey = `${activeStack}:${Object.keys(stack?.processes ?? {}).sort().join(',')}`
+
   const nodes: Node[] = useMemo(
     () => stack ? deriveGraphNodes(stack, stackStatuses) : [],
     [stack, stackStatuses],
@@ -59,6 +63,7 @@ export default function StackCanvas() {
   return (
     <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[var(--bg-canvas-over)]' : 'bg-[var(--bg-canvas)]'}`}>
       <ReactFlow
+        key={graphKey}
         nodes={nodes.map(n => ({ ...n, selected: n.id === selectedProc }))}
         edges={edges}
         nodeTypes={nodeTypes}

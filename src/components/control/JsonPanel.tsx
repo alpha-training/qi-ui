@@ -90,6 +90,9 @@ export default function JsonPanel() {
                   processes: { ...oldStack.processes, [oldProcName]: parsed },
                 })
               } else {
+                const bp = parsed.base_port
+                if (typeof bp !== 'number' || !Number.isInteger(bp) || bp < 1024 || bp > 65535)
+                  throw new Error('base_port must be an integer between 1024 and 65535')
                 await saveStack(oldStackName, parsed)
               }
             },
@@ -152,10 +155,8 @@ export default function JsonPanel() {
     setJsonStatus('valid')
 
     return () => {
-      viewRef.current?.destroy()
-      viewRef.current = null
-      // Do NOT reset editorKeyRef here — the next effect run needs to read
-      // the old key to detect unsaved changes before switching.
+      // Do NOT destroy or null viewRef here — the next effect run reads isDirtyRef
+      // and viewRef before destroying the old view (unsaved-changes detection).
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorKey])
@@ -174,14 +175,19 @@ export default function JsonPanel() {
 
   const commitRename = useCallback(() => {
     const trimmed = editName.trim()
+    if (!trimmed || !selectedProc || !stack) { setEditingName(false); return }
+    if (trimmed === selectedProc) { setEditingName(false); return }
+    if (stack.processes[trimmed]) {
+      setError(`Process name "${trimmed}" already exists in this stack`)
+      return  // keep editing open
+    }
     setEditingName(false)
-    if (!trimmed || trimmed === selectedProc || !selectedProc || !stack) return
     const procs = { ...stack.processes }
     procs[trimmed] = procs[selectedProc]
     delete procs[selectedProc]
     saveStack(activeStack, { ...stack, processes: procs })
     setSelectedProc(trimmed)
-  }, [editName, selectedProc, stack, activeStack, saveStack, setSelectedProc])
+  }, [editName, selectedProc, stack, activeStack, saveStack, setSelectedProc, setError])
 
   const handleDeleteProc = useCallback(() => {
     if (!selectedProc || !stack) return
@@ -195,6 +201,27 @@ export default function JsonPanel() {
     const text = viewRef.current?.state.doc.toString() ?? ''
     try {
       const parsed = JSON.parse(text)
+      if (selectedProc) {
+        const po = parsed.port_offset
+        if (typeof po !== 'number' || !Number.isInteger(po) || po < 0)
+          throw new Error('port_offset must be a non-negative integer')
+        const conflict = Object.entries(stack.processes)
+          .find(([n, p]) => n !== selectedProc && p.port_offset === po)
+        if (conflict) throw new Error(`port_offset ${po} is already used by "${conflict[0]}"`)
+      } else {
+        const bp = parsed.base_port
+        if (typeof bp !== 'number' || !Number.isInteger(bp) || bp < 1024 || bp > 65535)
+          throw new Error('base_port must be an integer between 1024 and 65535')
+        const offsets = Object.entries(parsed.processes ?? {}) as [string, { port_offset: number }][]
+        const seen = new Map<number, string>()
+        for (const [name, proc] of offsets) {
+          const po = proc.port_offset
+          if (typeof po !== 'number' || !Number.isInteger(po) || po < 0)
+            throw new Error(`port_offset for "${name}" must be a non-negative integer`)
+          if (seen.has(po)) throw new Error(`port_offset ${po} is used by both "${seen.get(po)}" and "${name}"`)
+          seen.set(po, name)
+        }
+      }
       setSaving(true)
       if (selectedProc) {
         await saveStack(activeStack, { ...stack, processes: { ...stack.processes, [selectedProc]: parsed } })

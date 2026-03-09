@@ -245,6 +245,7 @@ export default function ControlPage() {
       )}
       {showRename && (
         <RenameStackModal stackName={activeStack} existingNames={stackNames}
+          hasRunningProcesses={Object.values(statuses[activeStack] ?? {}).some(s => s === 'running')}
           onRename={name => renameStack(activeStack, name)} onClose={() => setShowRename(false)} />
       )}
       {showClone && (

@@ -21,7 +21,7 @@ export default function ProcessTable() {
         <table className="w-full text-sm text-left border-collapse">
           <thead className="sticky top-0 bg-[var(--bg-base)] z-10">
             <tr className="border-b border-[var(--border)]">
-              {['name', 'host', 'port', 'status', 'pid', 'mem/heap', 'log', 'action'].map(h => (
+              {['name', 'host', 'port', 'status', 'log', 'action'].map(h => (
                 <th key={h} className="px-4 py-2.5 text-xs font-medium text-[var(--text-dimmed)]">
                   {h}
                 </th>
@@ -31,7 +31,7 @@ export default function ProcessTable() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-sm text-[var(--text-faint)]">
+                <td colSpan={6} className="px-4 py-12 text-center text-sm text-[var(--text-faint)]">
                   No processes in this stack.
                 </td>
               </tr>
@@ -58,10 +58,6 @@ export default function ProcessTable() {
                       {r.status === 'running' ? 'up' : r.status === 'busy' ? 'busy' : 'down'}
                     </span>
                   </span>
-                </td>
-                <td className="px-4 py-2 text-[var(--text-dimmed)] font-mono">{r.pid ?? '–'}</td>
-                <td className="px-4 py-2 text-[var(--text-dimmed)] font-mono text-xs">
-                  {r.mem && r.heap ? `${r.mem} / ${r.heap}` : '–'}
                 </td>
                 <td className="px-4 py-2">
                   <button
