@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronsDown } from 'lucide-react'
+import { ChevronsDown, Trash2 } from 'lucide-react'
 import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
 export default function LogsPanel() {
-  const { logs, stacks, activeStack, selectedProc } = useControl()
+  const { logs, clearLogs, stacks, activeStack, selectedProc } = useControl()
   const [manualTab, setManualTab] = useState<string>('All')
   const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, fatal: true })
   const [autoScroll, setAutoScroll] = useState(true)
@@ -66,6 +66,10 @@ export default function LogsPanel() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button onClick={clearLogs} title="Clear logs"
+            className="text-[var(--text-dimmed)] hover:text-red-400 transition-colors">
+            <Trash2 size={13} />
+          </button>
           <span className="text-xs text-[var(--text-dimmed)]">Auto-scroll</span>
           <button onClick={() => setAutoScroll(v => !v)}
             className={`w-10 h-5 rounded-full relative transition-colors shrink-0
@@ -90,7 +94,8 @@ export default function LogsPanel() {
           )}
           {filtered.map(l => (
             <div key={l.id} className="flex gap-2 leading-5">
-              <span className="text-[var(--text-dimmed)] shrink-0 w-[88px] truncate">{l.process}</span>
+              <span className="text-[var(--text-faint)] shrink-0 w-[58px]">{l.ts}</span>
+              <span className="text-[var(--text-dimmed)] shrink-0 w-[80px] truncate">{l.process}</span>
               <span className={`shrink-0 w-[46px] font-bold
                 ${l.level === 'fatal' ? 'text-red-300' : l.level === 'error' ? 'text-amber-400' : 'text-[#3b82f6]'}`}>
                 {l.level.toUpperCase()}

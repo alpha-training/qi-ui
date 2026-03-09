@@ -197,7 +197,6 @@ export async function getStacks(): Promise<Record<string, Stack>> {
 export async function getStack(name: string): Promise<Stack> {
   // readstack returns read0 of the JSON file — an array of strings (one per line)
   const lines = await query<string | string[]>(`readstack[\`${name}]`)
-  console.log(`[getStack] "${name}" raw lines:`, Array.isArray(lines) ? `array[${(lines as string[]).length}]` : `string[${(lines as string).length}]`, JSON.stringify(lines).slice(0, 200))
   const json = Array.isArray(lines) ? lines.join('\n') : lines
   return JSON.parse(json) as Stack
 }
@@ -213,8 +212,7 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
   } catch (err) {
     // Hub may throw on post-write reload step but file is still written — verify
     const hubErr = err instanceof Error ? err.message : String(err)
-    console.warn(`[saveStack] hub error for "${name}":`, hubErr)
-    const written = await getStack(name).catch(e2 => { console.warn(`[saveStack] getStack failed:`, e2); return null })
+    const written = await getStack(name).catch(() => null)
     if (!written) throw new Error(`writestack failed (${hubErr})`)
     const sentKeys    = Object.keys(stack.processes).sort().join(',')
     const writtenKeys = Object.keys(written.processes).sort().join(',')
