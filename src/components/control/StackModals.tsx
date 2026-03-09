@@ -172,20 +172,25 @@ export function AddStackModal({
 // ─── Clone Stack Modal ────────────────────────────────────────────────────────
 
 export function CloneStackModal({
-  sourceName, existingNames, onClone, onClose,
+  sourceName, existingNames, suggestedPort, onClone, onClose,
 }: {
   sourceName: string
   existingNames: string[]
-  onClone: (newName: string) => void
+  suggestedPort: number
+  onClone: (newName: string, description: string, basePort: number) => void
   onClose: () => void
 }) {
   const [name, setName]   = useState(`${sourceName}_copy`)
+  const [desc, setDesc]   = useState('')
+  const [port, setPort]   = useState(String(suggestedPort))
   const [error, setError] = useState<string | null>(null)
 
   const handleConfirm = () => {
     if (!name.trim()) { setError('Name is required'); return }
     if (existingNames.includes(name.trim())) { setError(`"${name}" already exists`); return }
-    onClone(name.trim())
+    const p = parseInt(port)
+    if (isNaN(p) || p < 1024 || p > 65535) { setError('Port must be between 1024 and 65535'); return }
+    onClone(name.trim(), desc.trim(), p)
     onClose()
   }
 
@@ -199,6 +204,14 @@ export function CloneStackModal({
           <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">New stack name *</label>
           <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
             onEnter={handleConfirm} placeholder="New name" error={error} autoFocus />
+        </div>
+        <div>
+          <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">Description</label>
+          <ModalInput value={desc} onChange={setDesc} placeholder="Optional description" />
+        </div>
+        <div>
+          <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">Base port *</label>
+          <ModalInput value={port} onChange={setPort} placeholder="9000" />
         </div>
         <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Clone stack" />
       </div>

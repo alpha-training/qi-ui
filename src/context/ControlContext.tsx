@@ -31,10 +31,12 @@ import {
     // Stack actions
     addStack: (name: string, stack: Stack) => Promise<void>
     renameStack: (oldName: string, newName: string) => Promise<void>
-    cloneStack: (name: string, newName: string) => Promise<void>
+    cloneStack: (name: string, newName: string, description: string, basePort: number) => Promise<void>
     deleteStack: (name: string) => Promise<void>
     saveStack: (name: string, stack: Stack) => Promise<void>      // persists to API
     updateStackLocal: (name: string, stack: Stack) => void        // live update, no API call
+
+    clearLogs: () => void
 
     // Process actions
     startProcess: (stackName: string, proc: string) => Promise<void>
@@ -112,7 +114,7 @@ import {
                   for (const p of rows) {
                     if (!p.stackname || !p.name) continue
                     const procName = p.name.split('.')[0]
-                    const status: ProcessStatus = p.status === 'up' || p.status === 'busy' ? 'running' : 'stopped'
+                    const status: ProcessStatus = p.status === 'up' ? 'running' : p.status === 'busy' ? 'busy' : 'stopped'
                     next[p.stackname] = { ...next[p.stackname], [procName]: status }
                   }
                   return next
@@ -139,7 +141,10 @@ import {
 
     const addLog = useCallback((process: string, level: LogEntry['level'], msg: string) => {
       const ts = new Date().toTimeString().slice(0, 8)
-      setLogs(l => [...l, { id: _logId++, process, level, msg, ts }])
+      setLogs(l => {
+        const next = [...l, { id: _logId++, process, level, msg, ts }]
+        return next.length > 500 ? next.slice(next.length - 500) : next
+      })
     }, [])
 
     // ── Stream — live process status + log updates from kdb+ ─────────────────
@@ -207,7 +212,7 @@ import {
             for (const p of rows) {
               if (!p.stackname || !p.name) continue
               const procName = p.name.split('.')[0]
-              const status: ProcessStatus = p.status === 'up' || p.status === 'busy' ? 'running' : 'stopped'
+              const status: ProcessStatus = p.status === 'up' ? 'running' : p.status === 'busy' ? 'busy' : 'stopped'
               next[p.stackname] = { ...next[p.stackname], [procName]: status }
             }
             return next
@@ -325,19 +330,27 @@ import {
       if (activeStack === oldName) setActiveStack(newName)
     }, [stacks, activeStack, addLog, connType])
 
-    const cloneStack = useCallback(async (name: string, newName: string) => {
+    const cloneStack = useCallback(async (name: string, newName: string, description: string, basePort: number) => {
       const api = connType === 'q' ? qApi : realApi
+      let cloned
       try {
-        const cloned = await api.cloneStack(name, newName)
-        setStacks(s => ({ ...s, [newName]: cloned }))
-        addLog('system', 'info', `Stack "${name}" cloned as "${newName}"`)
+        cloned = await api.cloneStack(name, newName)
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         addLog('system', 'error', `Clone failed: ${msg}`)
         return
       }
+      // Apply new base_port and description, then persist
+      const updated = { ...cloned, base_port: basePort, description }
+      setStacks(s => ({ ...s, [newName]: updated }))
       setStackOrder(o => [...o, newName].sort())
       setActiveStack(newName)
+      try {
+        await api.saveStack(newName, updated)
+        addLog('system', 'info', `Stack "${name}" cloned as "${newName}"`)
+      } catch (e) {
+        addLog('system', 'error', `Clone saved but base_port update failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
     }, [addLog, connType])
 
     const deleteStack = useCallback(async (name: string) => {
@@ -373,6 +386,8 @@ import {
       }
     }, [addLog, connType])
 
+    const clearLogs = useCallback(() => setLogs([]), [])
+
     // Live update without API call — used by JSON editor while typing
     const updateStackLocal = useCallback((name: string, stack: Stack) => {
       setStacks(s => ({ ...s, [name]: stack }))
@@ -385,6 +400,7 @@ import {
         statuses, viewMode, setViewMode, logs,
         jsonStatus, setJsonStatus,
         connected, stacksLoading, statusesLoading,
+        clearLogs,
         addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal,
         startProcess, stopProcess, startAll, stopAll,
       }}>
