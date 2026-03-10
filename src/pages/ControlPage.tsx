@@ -258,6 +258,7 @@ export default function ControlPage() {
       )}
       {showDelete && (
         <DeleteStackModal stackName={activeStack}
+          hasRunningProcesses={Object.values(statuses[activeStack] ?? {}).some(s => s === 'running' || s === 'busy')}
           onDelete={() => { deleteStack(activeStack); setShowDelete(false) }}
           onClose={() => setShowDelete(false)} />
       )}
