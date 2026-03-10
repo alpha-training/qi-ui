@@ -3,7 +3,7 @@ import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import { Pencil, Trash2, AlertTriangle, Lock } from 'lucide-react'
 import { useControl } from '../../context/ControlContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -30,7 +30,19 @@ interface UnsavedNav {
 }
 
 export default function JsonPanel() {
-  const { stacks, activeStack, selectedProc, setSelectedProc, saveStack, updateStackLocal, jsonStatus, setJsonStatus } = useControl()
+  const { stacks, statuses, activeStack, selectedProc, setSelectedProc, saveStack, updateStackLocal, jsonStatus, setJsonStatus } = useControl()
+
+  const stackStatuses = statuses[activeStack] ?? {}
+  const procIsRunning = selectedProc
+    ? (stackStatuses[selectedProc] === 'running' || stackStatuses[selectedProc] === 'busy')
+    : false
+  const anyRunning = Object.values(stackStatuses).some(s => s === 'running' || s === 'busy')
+  // Lock the editor: process view → locked if that proc is running
+  //                  stack view   → locked if any proc is running
+  const isLocked = selectedProc ? procIsRunning : anyRunning
+  const lockMsg  = selectedProc
+    ? 'Stop this process to edit'
+    : 'Stop all processes to edit'
   const { theme } = useTheme()
   const editorRef         = useRef<HTMLDivElement>(null)
   const viewRef           = useRef<EditorView | null>(null)
@@ -295,7 +307,7 @@ export default function JsonPanel() {
         {selectedProc && (
           <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-[var(--border)]">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              {editingName ? (
+              {editingName && !isLocked ? (
                 <input
                   autoFocus
                   value={editName}
@@ -313,9 +325,10 @@ export default function JsonPanel() {
                 <>
                   <span className="text-sm font-medium text-[var(--text-primary)] truncate">{selectedProc}</span>
                   <button
-                    onClick={() => { setEditName(selectedProc); setEditingName(true) }}
-                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
-                    title="Rename process"
+                    onClick={() => { if (!isLocked) { setEditName(selectedProc); setEditingName(true) } }}
+                    disabled={isLocked}
+                    className={`transition-colors shrink-0 ${isLocked ? 'text-[var(--text-faint)] cursor-not-allowed' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                    title={isLocked ? 'Stop process to rename' : 'Rename process'}
                   >
                     <Pencil size={12} />
                   </button>
@@ -323,9 +336,10 @@ export default function JsonPanel() {
               )}
             </div>
             <button
-              onClick={handleDeleteProc}
-              className="text-[var(--text-muted)] hover:text-red-400 transition-colors shrink-0"
-              title="Delete process"
+              onClick={!isLocked ? handleDeleteProc : undefined}
+              disabled={isLocked}
+              className={`transition-colors shrink-0 ${isLocked ? 'text-[var(--text-faint)] cursor-not-allowed' : 'text-[var(--text-muted)] hover:text-red-400'}`}
+              title={isLocked ? 'Stop process to delete' : 'Delete process'}
             >
               <Trash2 size={13} />
             </button>
@@ -339,20 +353,29 @@ export default function JsonPanel() {
           </div>
         )}
 
-        {/* Editor */}
-        <div ref={editorRef} className="flex-1 min-h-0 overflow-auto" />
+        {/* Editor + lock overlay */}
+        <div className="relative flex-1 min-h-0 overflow-auto">
+          <div ref={editorRef} className="h-full" />
+          {isLocked && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2
+              bg-[var(--bg-panel)]/80 backdrop-blur-[1px]">
+              <Lock size={16} className="text-[var(--text-dimmed)]" />
+              <span className="text-xs text-[var(--text-dimmed)] text-center px-4">{lockMsg}</span>
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
         <div className="shrink-0 flex items-center justify-end gap-3 px-5 py-4 border-t border-[var(--border)]">
-          <button onClick={handleCancel} disabled={!isDirty}
+          <button onClick={handleCancel} disabled={!isDirty || isLocked}
             className="px-5 py-2 rounded-lg text-sm font-medium border border-[var(--border-btn)] text-[var(--text-secondary)]
               hover:border-[var(--border-btn-hover)] hover:text-[var(--text-primary)] transition-all
               disabled:opacity-30 disabled:cursor-not-allowed">
             Cancel
           </button>
-          <button onClick={handleSave} disabled={jsonStatus === 'invalid' || saving}
+          <button onClick={handleSave} disabled={jsonStatus === 'invalid' || saving || isLocked}
             className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium border transition-all
-              ${jsonStatus === 'invalid' || saving
+              ${jsonStatus === 'invalid' || saving || isLocked
                 ? 'border-[var(--border)] text-[var(--text-dimmed)] cursor-not-allowed'
                 : 'border-[#3b82f6] text-[#3b82f6] hover:bg-[#3b82f6]/10'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"

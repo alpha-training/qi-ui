@@ -6,7 +6,7 @@ import {
 } from '@dnd-kit/core'
 import { Share2, List, Play, Square, Plus, MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import { useControl } from '../context/ControlContext'
-import { autoName } from '../utils/stack'
+import { autoName, assignPortOffset } from '../utils/stack'
 import { PKG_DEFAULTS, type PalettePkg } from '../config'
 import type { Stack } from '../types'
 import ProcessPalette from '../components/control/ProcessPalette'
@@ -69,8 +69,7 @@ export default function ControlPage() {
     if (!currentStack) return
     const pkg = (active.data.current as { pkg: string }).pkg
     const name = autoName(pkg, currentStack.processes)
-    const existingOffsets = Object.values(currentStack.processes).map(p => p.port_offset)
-    const portOffset = existingOffsets.length === 0 ? 0 : Math.max(...existingOffsets) + 1
+    const portOffset = assignPortOffset(pkg, currentStack.processes)
     const defaults = PKG_DEFAULTS[pkg as PalettePkg] ?? {}
     const updated: Stack = {
       ...currentStack,
@@ -80,7 +79,11 @@ export default function ControlPage() {
   }, [stacks, activeStack, saveStack])
 
   const handleAddStack = (name: string, description: string, basePort: number) => {
-    addStack(name, { description, base_port: basePort, processes: {} })
+    addStack(name, {
+      description,
+      base_port: basePort,
+      processes: { tp1: { pkg: 'tp', port_offset: 10 } },
+    })
   }
 
   if (stacksLoading || statusesLoading) {
@@ -255,6 +258,7 @@ export default function ControlPage() {
       )}
       {showDelete && (
         <DeleteStackModal stackName={activeStack}
+          hasRunningProcesses={Object.values(statuses[activeStack] ?? {}).some(s => s === 'running' || s === 'busy')}
           onDelete={() => { deleteStack(activeStack); setShowDelete(false) }}
           onClose={() => setShowDelete(false)} />
       )}

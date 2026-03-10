@@ -264,9 +264,10 @@ export function RenameStackModal({
 // ─── Delete Stack Modal ───────────────────────────────────────────────────────
 
 export function DeleteStackModal({
-  stackName, onDelete, onClose,
+  stackName, hasRunningProcesses, onDelete, onClose,
 }: {
   stackName: string
+  hasRunningProcesses: boolean
   onDelete: () => void
   onClose: () => void
 }) {
@@ -280,6 +281,12 @@ export function DeleteStackModal({
       onClose={onClose}
     >
       <div className="space-y-4">
+        {hasRunningProcesses && (
+          <div className="flex gap-3 p-3 bg-amber-900/20 border border-amber-800/40 rounded-lg">
+            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-300">Stop all processes before deleting this stack.</p>
+          </div>
+        )}
         <div className="flex gap-3 p-3 bg-red-900/20 border border-red-800/40 rounded-lg">
           <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
           <p className="text-sm text-red-300">
@@ -299,7 +306,7 @@ export function DeleteStackModal({
           onConfirm={onDelete}
           confirmLabel="Delete permanently"
           confirmVariant="danger"
-          disabled={!confirmed}
+          disabled={!confirmed || hasRunningProcesses}
         />
       </div>
     </Modal>
