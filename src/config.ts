@@ -74,6 +74,19 @@ export const PKG_DEFAULTS: Partial<Record<PalettePkg, {
   wdb:     { subscribe_to: { tp1: '*' }, hdb: 'hdb1' },
 }
 
+// ─── Port offset convention ───────────────────────────────────────────────────
+
+/** Feed packages occupy port offsets 1–9 (one slot per feed instance) */
+export const FEED_PKGS = new Set(['alpaca', 'binance', 'kraken', 'massive'])
+
+/** Fixed canonical port offsets for non-feed packages */
+export const FIXED_PORT_OFFSETS: Record<string, number> = {
+  tp:  10,
+  rdb: 11,
+  wdb: 12,
+  hdb: 13,
+}
+
 // ─── API base ─────────────────────────────────────────────────────────────────
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:9001'

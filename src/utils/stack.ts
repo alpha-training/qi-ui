@@ -1,5 +1,28 @@
 import type { Stack, Process, GraphNode, GraphEdge, ProcessRuntime, ProcessStatus } from '../types'
-import { PKG_LAYER, LAYOUT } from '../config'
+import { PKG_LAYER, LAYOUT, FEED_PKGS, FIXED_PORT_OFFSETS } from '../config'
+
+// ─── Port offset assignment ───────────────────────────────────────────────────
+
+/**
+ * Returns the correct port_offset for a new process of the given package type,
+ * following the convention: feeds=1–9, tp=10, rdb=11, wdb=12, hdb=13, others=14+
+ */
+export function assignPortOffset(pkg: string, processes: Record<string, Process>): number {
+  const used = new Set(Object.values(processes).map(p => p.port_offset))
+
+  if (FEED_PKGS.has(pkg)) {
+    for (let i = 1; i <= 9; i++) {
+      if (!used.has(i)) return i
+    }
+  } else if (pkg in FIXED_PORT_OFFSETS) {
+    return FIXED_PORT_OFFSETS[pkg]
+  }
+
+  // Others (or feed overflow): next available >= 14
+  let offset = 14
+  while (used.has(offset)) offset++
+  return offset
+}
 
 // ─── Auto-naming ──────────────────────────────────────────────────────────────
 
