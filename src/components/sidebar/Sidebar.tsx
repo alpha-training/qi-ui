@@ -30,14 +30,20 @@ export default function Sidebar() {
         {NAV.map(({ icon: Icon, label, active }) => (
           <div
             key={label}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm w-full
+            title={active ? undefined : 'Coming soon'}
+            className={`relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm w-full group/nav
               ${active
-                ? 'bg-[#3b82f6] text-white font-medium cursor-pointer'
-                : 'text-[var(--text-muted)] font-light cursor-default opacity-50'
+                ? 'bg-[var(--primary)] text-white font-medium cursor-pointer'
+                : 'text-[var(--text-muted)] font-light cursor-default opacity-35 hover:opacity-60 transition-opacity'
               }`}
           >
             <Icon size={16} />
             {label}
+            {!active && (
+              <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-[var(--bg-dropdown)] border border-[var(--border)] text-xs text-[var(--text-dimmed)] whitespace-nowrap opacity-0 group-hover/nav:opacity-100 transition-opacity pointer-events-none z-50">
+                Coming soon
+              </span>
+            )}
           </div>
         ))}
       </nav>

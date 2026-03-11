@@ -90,7 +90,7 @@ export default function ControlPage() {
     return (
       <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)]">
         <div className="flex items-center gap-3 text-[var(--text-dimmed)] text-sm">
-          <div className="w-4 h-4 border-2 border-[var(--border)] border-t-[#3b82f6] rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-[var(--border)] border-t-[var(--primary)] rounded-full animate-spin" />
           {stacksLoading ? 'Loading stacks…' : 'Loading statuses…'}
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function ControlPage() {
                   ))}
                 </div>
               </div>
-              <button onClick={() => setShowAdd(true)}
+              <button onClick={() => setShowAdd(true)} title="Add stack"
                 className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-[var(--text-dimmed)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover-md)]">
                 <Plus size={13} />
               </button>
@@ -221,8 +221,22 @@ export default function ControlPage() {
         <div className="flex flex-1 min-h-0">
           <div className="flex flex-col flex-1 min-h-0">
             <div className="flex flex-1 min-h-0">
-              {viewMode === 'graph' && <ProcessPalette />}
-              {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable key={activeStack} />}
+              {stackNames.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <p className="text-[var(--text-dimmed)] text-sm">No stacks yet.</p>
+                    <button onClick={() => setShowAdd(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-500/50 text-blue-400 text-sm hover:bg-blue-500/10 transition-colors">
+                      <Plus size={13} /> Create a stack
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {viewMode === 'graph' && <ProcessPalette />}
+                  {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable key={activeStack} />}
+                </>
+              )}
             </div>
             <LogsPanel key={activeStack} />
           </div>

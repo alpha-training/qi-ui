@@ -38,7 +38,7 @@ export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRu
           <span className="text-xs text-[var(--node-port-text)]">{data.port}</span>
           <div className="w-[72px] flex justify-end">
             {isActive ? (
-              <button onClick={handleStop}
+              <button onClick={handleStop} title={`Stop ${data.name}`}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-orange-500/70
                   text-orange-400 text-xs font-medium hover:bg-orange-500/10 transition-colors
                   opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
@@ -46,7 +46,7 @@ export default memo(function ProcessNode({ data, selected }: NodeProps<ProcessRu
                 Stop
               </button>
             ) : (
-              <button onClick={handleStart}
+              <button onClick={handleStart} title={`Start ${data.name}`}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-green-500/70
                   text-green-400 text-xs font-medium hover:bg-green-500/10 transition-colors
                   opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
