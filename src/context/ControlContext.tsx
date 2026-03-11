@@ -178,14 +178,22 @@ import {
             for (const l of logRows) {
               const procName = l.name?.split('.')[0] ?? 'system'
               const lines = Array.isArray(l.lines) ? l.lines : [l.lines ?? '']
+              let lastLevel: LogEntry['level'] = 'info'
               for (const line of lines) {
                 if (!line.trim()) continue
                 // Line format: "2026.03.05D16:36:03.000000000 info 0 message here"
                 const parts = line.split(' ')
-                const rawLevel = parts[1]?.toLowerCase() ?? 'info'
-                const level: LogEntry['level'] = rawLevel === 'fatal' ? 'fatal' : rawLevel === 'error' ? 'error' : 'info'
-                const msg = parts.slice(3).join(' ')
-                addLog(procName, level, msg || line)
+                const rawLevel = parts[1]?.toLowerCase() ?? ''
+                const knownLevel: LogEntry['level'] | null =
+                  rawLevel === 'fatal' ? 'fatal' : rawLevel === 'error' ? 'error' : rawLevel === 'info' ? 'info' : null
+                if (knownLevel !== null) {
+                  // Well-formed line — update lastLevel and log
+                  lastLevel = knownLevel
+                  addLog(procName, lastLevel, parts.slice(3).join(' ') || line)
+                } else {
+                  // Continuation line (e.g. after \n in message) — inherit last level
+                  addLog(procName, lastLevel, line)
+                }
               }
             }
           }
