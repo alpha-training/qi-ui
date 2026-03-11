@@ -220,6 +220,8 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
     const writtenKeys = Object.keys(written.processes).sort().join(',')
     if (sentKeys !== writtenKeys) throw new Error(`writestack: content not updated (${hubErr})`)
   }
+  // Load the stack into hub's procs table so processes become startable
+  await query(`load1stack[\`${name}]`).catch(() => { /* ignore if not supported or already loaded */ })
   await triggerUpdate()
 }
 
@@ -260,8 +262,8 @@ export async function getStatuses(): Promise<Array<{ name: string; stackname: st
 
 // ─── Recent logs from MonText ─────────────────────────────────────────────────
 
-export async function getRecentLogs(n = 200): Promise<Array<{ sym: string; lines: string | string[] }>> {
-  return query(`select[-${n}] sym,lines from MonText`)
+export async function getRecentLogs(n = 50): Promise<Array<{ time: string; sym: string; lines: string | string[] }>> {
+  return query(`select[-${n}] time,sym,lines from MonText`)
 }
 
 // ─── Process control ──────────────────────────────────────────────────────────

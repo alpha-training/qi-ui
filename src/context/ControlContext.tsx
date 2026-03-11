@@ -202,22 +202,24 @@ import {
         (isConnected) => setConnected(isConnected),
       )
 
-      // Poll MonText for recent logs (hub doesn't push them via WebSocket)
+      // Poll MonText for recent logs (hub clears it every 1s after push, so poll fast)
       let pollTimer: ReturnType<typeof setInterval> | null = null
       if (connType === 'q') {
-        let lastCount = 0
+        let lastTs = ''
         const fetchLogs = async () => {
           try {
-            const rows = await qApi.getRecentLogs(200)
-            if (!Array.isArray(rows) || rows.length === lastCount) return
-            const newRows = rows.slice(lastCount)
-            lastCount = rows.length
-            for (const r of newRows) parseMonTextRow(r)
+            const rows = await qApi.getRecentLogs(50)
+            if (!Array.isArray(rows) || rows.length === 0) return
+            for (const r of rows) {
+              const ts = String(r.time ?? '')
+              if (ts && ts <= lastTs) continue
+              if (ts) lastTs = ts
+              parseMonTextRow(r)
+            }
           } catch { /* ignore */ }
         }
-        // Initial fetch after WS opens
         setTimeout(fetchLogs, 1500)
-        pollTimer = setInterval(fetchLogs, 2000)
+        pollTimer = setInterval(fetchLogs, 1000)
       }
 
       return () => {
