@@ -17,12 +17,21 @@ function ApiStatus() {
       <span className="text-xs text-[var(--text-dimmed)]">
         {connected ? 'API connected' : 'Offline'}
       </span>
+      {!connected && (
+        <button
+          onClick={() => window.location.reload()}
+          className="text-xs text-blue-400 hover:text-blue-300 transition-colors ml-0.5"
+          title="Reconnect"
+        >
+          Reconnect
+        </button>
+      )}
     </div>
   )
 }
 
 type OnboardingForm = { host: string; port: string; name: string; username: string; password: string; connType: 'q' | 'api' }
-const emptyOnboarding: OnboardingForm = { host: '', port: '8000', name: '', username: '', password: '', connType: 'q' }
+const emptyOnboarding: OnboardingForm = { host: 'localhost', port: '8000', name: '', username: '', password: '', connType: 'q' }
 const onboardingFields = [
   { key: 'host',     label: 'Host',     placeholder: 'localhost', required: true,  type: 'text'     },
   { key: 'port',     label: 'Port',     placeholder: '8000',      required: true,  type: 'number'   },
@@ -43,7 +52,7 @@ function OnboardingModal() {
     const portNum = parseInt(form.port, 10)
     if (isNaN(portNum)) return
     addConnection({
-      host: form.host.trim(),
+      host: form.host.trim().toLowerCase(),
       port: portNum,
       type: form.connType,
       ...(form.name.trim() && { name: form.name.trim() }),

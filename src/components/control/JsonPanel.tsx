@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
-import { EditorState } from '@codemirror/state'
+import { EditorState, Compartment } from '@codemirror/state'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { Pencil, Trash2, AlertTriangle, Lock } from 'lucide-react'
@@ -46,6 +46,7 @@ export default function JsonPanel() {
   const { theme } = useTheme()
   const editorRef         = useRef<HTMLDivElement>(null)
   const viewRef           = useRef<EditorView | null>(null)
+  const readOnlyCompartment = useRef(new Compartment())
   const isProgrammaticRef = useRef(false)
   const lastSyncedJsonRef = useRef('')
   const isDirtyRef             = useRef(false)          // always-current mirror of isDirty
@@ -155,8 +156,8 @@ export default function JsonPanel() {
     })
 
     const extensions = theme === 'dark'
-      ? [basicSetup, json(), oneDark, editorThemeDark, updateListener]
-      : [basicSetup, json(), editorThemeLight, updateListener]
+      ? [basicSetup, json(), oneDark, editorThemeDark, updateListener, readOnlyCompartment.current.of(EditorState.readOnly.of(isLocked))]
+      : [basicSetup, json(), editorThemeLight, updateListener, readOnlyCompartment.current.of(EditorState.readOnly.of(isLocked))]
 
     const state = EditorState.create({ doc: initialJson, extensions })
     viewRef.current = new EditorView({ state, parent: editorRef.current })
@@ -172,6 +173,14 @@ export default function JsonPanel() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorKey])
+
+  // Toggle read-only dynamically when lock state changes
+  useEffect(() => {
+    if (!viewRef.current) return
+    viewRef.current.dispatch({
+      effects: readOnlyCompartment.current.reconfigure(EditorState.readOnly.of(isLocked)),
+    })
+  }, [isLocked])
 
   // Sync editor when stack is modified externally (e.g. drag-drop adds a process)
   useEffect(() => {
@@ -346,6 +355,14 @@ export default function JsonPanel() {
           </div>
         )}
 
+        {/* Lock banner */}
+        {isLocked && (
+          <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-900/25 border-b border-amber-800/40">
+            <Lock size={12} className="text-amber-400 shrink-0" />
+            <span className="text-xs text-amber-300">{lockMsg}</span>
+          </div>
+        )}
+
         {/* Error bar */}
         {error && (
           <div className="shrink-0 px-5 py-2 bg-red-900/30 border-b border-red-800/50 text-xs text-red-300 font-mono break-all">
@@ -353,16 +370,9 @@ export default function JsonPanel() {
           </div>
         )}
 
-        {/* Editor + lock overlay */}
-        <div className="relative flex-1 min-h-0 overflow-auto">
+        {/* Editor */}
+        <div className={`flex-1 min-h-0 overflow-auto ${isLocked ? '[&_.cm-content]:!cursor-default [&_.cm-cursor]:!opacity-0' : ''}`}>
           <div ref={editorRef} className="h-full" />
-          {isLocked && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2
-              bg-[var(--bg-panel)]/80 backdrop-blur-[1px]">
-              <Lock size={16} className="text-[var(--text-dimmed)]" />
-              <span className="text-xs text-[var(--text-dimmed)] text-center px-4">{lockMsg}</span>
-            </div>
-          )}
         </div>
 
         {/* Footer */}

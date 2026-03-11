@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            label: macos-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            label: macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: windows-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: qi ${{ github.ref_name }}
+          releaseBody: |
+            Download the installer for your platform below.
+
+            **macOS**: Download the `.dmg` file. Right-click → Open if blocked by Gatekeeper.
+            **Windows**: Download the `.msi` file.
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }}

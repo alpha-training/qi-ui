@@ -12,7 +12,7 @@ type FormState = {
   connType: 'q' | 'api'
 }
 
-const emptyForm: FormState = { host: '', port: '', name: '', username: '', password: '', connType: 'q' }
+const emptyForm: FormState = { host: 'localhost', port: '8000', name: '', username: '', password: '', connType: 'q' }
 
 const formFields = [
   { key: 'host',     label: 'Host',     placeholder: 'localhost', required: true,  type: 'text'     },
@@ -72,7 +72,7 @@ export default function ConnectionDropdown() {
     if (isNaN(portNum)) return
 
     const data = {
-      host: form.host.trim(),
+      host: form.host.trim().toLowerCase(),
       port: portNum,
       type: form.connType,
       ...(form.name.trim() && { name: form.name.trim() }),
@@ -188,6 +188,9 @@ export default function ConnectionDropdown() {
                     value={form[field.key as keyof Omit<FormState, 'connType'>]}
                     onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleSave()}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="flex-1 bg-[var(--bg-input)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-blue-500/50 transition-colors"
                   />
                 </div>
