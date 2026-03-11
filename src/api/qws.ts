@@ -227,8 +227,10 @@ export async function renameStack(name: string, newName: string): Promise<void> 
   try {
     await query(`renamestack[\`${name};\`${newName}]`)
   } catch {
-    const written = await getStack(newName).catch(() => null)
-    if (!written) throw new Error('renamestack failed and could not be verified')
+    // Fallback: copy via writestack + delete old
+    const src = await getStack(name)
+    await saveStack(newName, src)
+    await query(`deletestack[\`${name}]`).catch(() => { /* ignore if not supported */ })
   }
   await triggerUpdate()
 }
@@ -237,8 +239,9 @@ export async function cloneStack(name: string, newName: string): Promise<Stack> 
   try {
     await query(`clonestack[\`${name};\`${newName}]`)
   } catch {
-    const written = await getStack(newName).catch(() => null)
-    if (!written) throw new Error('clonestack failed and clone could not be verified')
+    // Fallback: read source and write as new name
+    const src = await getStack(name)
+    await saveStack(newName, src)
   }
   await triggerUpdate()
   return getStack(newName)
