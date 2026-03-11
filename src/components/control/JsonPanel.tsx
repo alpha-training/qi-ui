@@ -143,9 +143,9 @@ export default function JsonPanel() {
         const parsed = JSON.parse(text)
         setError(null)
         setJsonStatus('unsaved')
-        if (selectedProc) {
+        if (selectedProc && stack) {
           updateStackLocal(activeStack, { ...stack, processes: { ...stack.processes, [selectedProc]: parsed } })
-        } else {
+        } else if (!selectedProc) {
           updateStackLocal(activeStack, parsed)
         }
       } catch (e: unknown) {

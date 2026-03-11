@@ -130,12 +130,8 @@ function query<T>(cmd: string, timeoutMs = 5000): Promise<T> {
           reject(new Error('WebSocket not open'))
           return
         }
-        const timer = setTimeout(() => {
-          const idx = _pending.findIndex(p => p.resolve === (resolve as (v: unknown) => void))
-          if (idx !== -1) _pending.splice(idx, 1)
-          reject(new Error(`query timeout: ${cmd}`))
-        }, timeoutMs)
-        _pending.push({
+        // Build the entry first so the timeout can find it by reference
+        const entry: { resolve: (v: unknown) => void; reject: (e: Error) => void } = {
           resolve: (v) => {
             clearTimeout(timer)
             // Hub returns errors as strings: "kdb error: ..."
@@ -145,8 +141,14 @@ function query<T>(cmd: string, timeoutMs = 5000): Promise<T> {
               ;(resolve as (v: unknown) => void)(v)
             }
           },
-          reject:  (e) => { clearTimeout(timer); reject(e) },
-        })
+          reject: (e) => { clearTimeout(timer); reject(e) },
+        }
+        const timer = setTimeout(() => {
+          const idx = _pending.indexOf(entry)
+          if (idx !== -1) _pending.splice(idx, 1)
+          reject(new Error(`query timeout: ${cmd}`))
+        }, timeoutMs)
+        _pending.push(entry)
         _ws.send(JSON.stringify({ cmd }))
       }),
   )

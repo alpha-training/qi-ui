@@ -29,9 +29,9 @@ export default function StackCanvas() {
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
 
-  // Changing when processes are added/removed forces ReactFlow to remount + re-fit.
-  // Changing only process properties (port, pkg) updates in-place — no remount.
-  const graphKey = `${activeStack}:${Object.keys(stack?.processes ?? {}).sort().join(',')}`
+  // Only remount ReactFlow when switching stacks — not on every process addition.
+  // Node additions/removals are handled in-place; remounting causes a visible flicker.
+  const graphKey = activeStack
 
   const nodes: Node[] = useMemo(
     () => stack ? deriveGraphNodes(stack, stackStatuses) : [],
