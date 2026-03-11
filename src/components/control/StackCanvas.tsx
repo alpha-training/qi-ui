@@ -72,8 +72,8 @@ export default function StackCanvas() {
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={{ padding: 0.15, minZoom: 0.8, maxZoom: 1.5 }}
-        onInit={rf => setTimeout(() => rf.fitView({ padding: 0.15, minZoom: 0.8, maxZoom: 1.5 }), 50)}
+        fitViewOptions={{ padding: 0.3, minZoom: 0.5, maxZoom: 1 }}
+        onInit={rf => setTimeout(() => rf.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50)}
         minZoom={0.3}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}

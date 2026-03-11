@@ -255,6 +255,12 @@ export async function getStatuses(): Promise<Array<{ name: string; stackname: st
   return query('select name,stackname,status from procs')
 }
 
+// ─── Recent logs from MonText ─────────────────────────────────────────────────
+
+export async function getRecentLogs(n = 200): Promise<Array<{ sym: string; lines: string | string[] }>> {
+  return query(`select[-${n}] sym,lines from MonText`)
+}
+
 // ─── Process control ──────────────────────────────────────────────────────────
 
 export async function startProcess(stack: string, proc: string): Promise<void> {

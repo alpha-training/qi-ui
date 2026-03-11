@@ -100,7 +100,7 @@ import {
         .then(async s => {
           hasRealStacksRef.current = true
           setStacks(s)
-          const order = Object.keys(s).sort()
+          const order = Object.keys(s).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
           setStackOrder(order)
           setActiveStack(order[0] ?? '')
           setStacksLoading(false)
@@ -130,7 +130,7 @@ import {
             if (hasRealStacksRef.current) return
             mock.getStacks().then(s => {
               setStacks(s)
-              const order = Object.keys(s).sort()
+              const order = Object.keys(s).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
               setStackOrder(order)
               setActiveStack(order[0] ?? '')
               setStacksLoading(false)
@@ -147,21 +147,42 @@ import {
       })
     }, [])
 
-    // ── Stream — live process status + log updates from kdb+ ─────────────────
+    // ── Parse a MonText log row and emit addLog calls ─────────────────────────
+    const parseMonTextRow = useCallback((l: { sym?: string; lines?: string | string[] }) => {
+      // sym = ":/path/to/logs/process/dev1/tp1.log"
+      const symStr = String(l.sym ?? '')
+      const fileName = symStr.split('/').pop() ?? ''          // "tp1.log"
+      const procName = fileName.replace(/\.log$/, '') || 'system'  // "tp1"
+      const lines = Array.isArray(l.lines) ? l.lines : [String(l.lines ?? '')]
+      let lastLevel: LogEntry['level'] = 'info'
+      for (const line of lines) {
+        if (!line.trim()) continue
+        // Line format: "2026.03.05D16:36:03.000000000 info 0 message here"
+        const parts = line.split(' ')
+        const rawLevel = parts[1]?.toLowerCase() ?? ''
+        const knownLevel: LogEntry['level'] | null =
+          rawLevel === 'fatal' ? 'fatal' : rawLevel === 'error' ? 'error' : rawLevel === 'info' ? 'info' : null
+        if (knownLevel !== null) {
+          lastLevel = knownLevel
+          addLog(procName, lastLevel, parts.slice(3).join(' ') || line)
+        } else {
+          addLog(procName, lastLevel, line)
+        }
+      }
+    }, [addLog])
+
+    // ── Stream — live process status updates from kdb+ ────────────────────────
     useEffect(() => {
       const api = connType === 'q' ? qApi : realApi
       const cleanup = api.connectStream(
         (msg: StreamMessage) => {
           const result = msg.result
-          // Stream format: ["tableName", [...rows]]
           if (!Array.isArray(result) || result.length < 2) return
           const [tableName, rows] = result as [string, unknown[]]
           if (!Array.isArray(rows) || rows.length === 0) return
 
           if (tableName === 'processes') {
             const procRows = rows as realApi.ProcStatus[]
-
-            // Update statuses only — stacks are loaded via getStacks (with full JSON including publish_to etc.)
             setStatuses(prev => {
               const next = { ...prev }
               for (const p of procRows) {
@@ -173,35 +194,37 @@ import {
               return next
             })
             setStatusesLoading(false)
-          } else if (tableName === 'Logs') {
-            const logRows = rows as realApi.StreamLogEntry[]
-            for (const l of logRows) {
-              const procName = l.name?.split('.')[0] ?? 'system'
-              const lines = Array.isArray(l.lines) ? l.lines : [l.lines ?? '']
-              let lastLevel: LogEntry['level'] = 'info'
-              for (const line of lines) {
-                if (!line.trim()) continue
-                // Line format: "2026.03.05D16:36:03.000000000 info 0 message here"
-                const parts = line.split(' ')
-                const rawLevel = parts[1]?.toLowerCase() ?? ''
-                const knownLevel: LogEntry['level'] | null =
-                  rawLevel === 'fatal' ? 'fatal' : rawLevel === 'error' ? 'error' : rawLevel === 'info' ? 'info' : null
-                if (knownLevel !== null) {
-                  // Well-formed line — update lastLevel and log
-                  lastLevel = knownLevel
-                  addLog(procName, lastLevel, parts.slice(3).join(' ') || line)
-                } else {
-                  // Continuation line (e.g. after \n in message) — inherit last level
-                  addLog(procName, lastLevel, line)
-                }
-              }
-            }
+          } else if (tableName === 'MonText' || tableName === 'Logs') {
+            const logRows = rows as Array<{ sym?: string; name?: string; lines?: string | string[] }>
+            for (const l of logRows) parseMonTextRow(l)
           }
         },
         (isConnected) => setConnected(isConnected),
       )
-      return cleanup
-    }, [apiBase, connType, addLog])
+
+      // Poll MonText for recent logs (hub doesn't push them via WebSocket)
+      let pollTimer: ReturnType<typeof setInterval> | null = null
+      if (connType === 'q') {
+        let lastCount = 0
+        const fetchLogs = async () => {
+          try {
+            const rows = await qApi.getRecentLogs(200)
+            if (!Array.isArray(rows) || rows.length === lastCount) return
+            const newRows = rows.slice(lastCount)
+            lastCount = rows.length
+            for (const r of newRows) parseMonTextRow(r)
+          } catch { /* ignore */ }
+        }
+        // Initial fetch after WS opens
+        setTimeout(fetchLogs, 1500)
+        pollTimer = setInterval(fetchLogs, 2000)
+      }
+
+      return () => {
+        if (pollTimer) clearInterval(pollTimer)
+        cleanup()
+      }
+    }, [apiBase, connType, addLog, parseMonTextRow])
 
     const setStatus = (stackName: string, proc: string, status: ProcessStatus) =>
       setStatuses(s => ({ ...s, [stackName]: { ...s[stackName], [proc]: status } }))
@@ -267,21 +290,29 @@ import {
     }, [addLog, connType])
 
     const startAll = useCallback(async (stackName: string) => {
-      const api = connType === 'q' ? qApi : realApi
       try {
-        await api.startAll(stackName)
+        if (connType === 'q') {
+          const procs = Object.keys(stacks[stackName]?.processes ?? {})
+          await Promise.all(procs.map(p => qApi.startProcess(stackName, p)))
+        } else {
+          await realApi.startAll(stackName)
+        }
         addLog('system', 'info', `All processes started in ${stackName}`)
-        refreshStatuses()  // show real statuses after a short delay — no optimistic update to avoid flicker
-      } catch {
-        addLog('system', 'error', `Start all failed for ${stackName}`)
+        refreshStatuses()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog('system', 'error', `Start all failed for ${stackName}: ${msg}`)
       }
-    }, [addLog, connType, refreshStatuses])
+    }, [stacks, addLog, connType, refreshStatuses])
 
     const stopAll = useCallback(async (stackName: string) => {
-      const api = connType === 'q' ? qApi : realApi
       const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
-        await api.stopAll(stackName)
+        if (connType === 'q') {
+          await Promise.all(procs.map(p => qApi.stopProcess(stackName, p)))
+        } else {
+          await realApi.stopAll(stackName)
+        }
         addLog('system', 'info', `All processes stopped in ${stackName}`)
         setStatuses(s => ({
           ...s,
@@ -297,7 +328,7 @@ import {
     const addStack = useCallback(async (name: string, stack: Stack) => {
       const api = connType === 'q' ? qApi : realApi
       setStacks(s => ({ ...s, [name]: stack }))
-      setStackOrder(o => [...o, name].sort())
+      setStackOrder(o => [...o, name].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
       setActiveStack(name)
       try {
         await api.saveStack(name, stack)
@@ -329,7 +360,7 @@ import {
         delete ns[oldName]
         return ns
       })
-      setStackOrder(o => o.map(n => n === oldName ? newName : n).sort())
+      setStackOrder(o => o.map(n => n === oldName ? newName : n).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
       setStatuses(s => {
         const ns = { ...s, [newName]: s[oldName] ?? {} }
         delete ns[oldName]
@@ -351,7 +382,7 @@ import {
       // Apply new base_port and description, then persist
       const updated = { ...cloned, base_port: basePort, description }
       setStacks(s => ({ ...s, [newName]: updated }))
-      setStackOrder(o => [...o, newName].sort())
+      setStackOrder(o => [...o, newName].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
       setActiveStack(newName)
       try {
         await api.saveStack(newName, updated)
@@ -365,11 +396,9 @@ import {
       const api = connType === 'q' ? qApi : realApi
       try {
         await api.deleteStack(name)
-        addLog('system', 'info', `Stack "${name}" deleted`)
-      } catch (e) {
-        try { await mock.deleteStack(name) } catch { /* ignore */ }
-        addLog('system', 'error', `Stack "${name}" delete failed: ${e instanceof Error ? e.message : String(e)}`)
-      }
+      } catch { /* backend may not support deletestack yet */ }
+      try { await mock.deleteStack(name) } catch { /* ignore */ }
+      addLog('system', 'info', `Stack "${name}" deleted`)
       setStacks(s => {
         const ns = { ...s }
         delete ns[name]

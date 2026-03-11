@@ -153,7 +153,7 @@ export function AddStackModal({
         <div>
           <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">Stack name *</label>
           <ModalInput value={name} onChange={v => { setName(v); setError(null) }}
-            onEnter={handleConfirm} placeholder="e.g. Dev3" error={error} autoFocus />
+            onEnter={handleConfirm} placeholder="e.g. dev3" error={error} autoFocus />
         </div>
         <div>
           <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">Description</label>
