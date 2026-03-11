@@ -65,6 +65,9 @@
   /* Scrollbars */
   --scrollbar-thumb:       #1e3a52;
   --scrollbar-thumb-hover: #2a5070;
+
+  /* Primary action colour */
+  --primary: #3b82f6;
 }
 
 /* ── Light mode overrides ───────────────────────────────────────── */
@@ -111,6 +114,9 @@
   /* Scrollbars */
   --scrollbar-thumb:       #93c5fd;
   --scrollbar-thumb-hover: #60a5fa;
+
+  /* Primary action colour */
+  --primary: #2563eb;
 }
 
 /* ── Light mode: status + action button colour overrides ────────── */

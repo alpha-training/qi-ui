@@ -36,7 +36,7 @@ export default function LogsPanel() {
             <button key={tab} onClick={() => setManualTab(tab)}
               className={`text-xs font-medium transition-colors
                 ${activeTab === tab
-                  ? 'text-[#3b82f6] underline underline-offset-4 decoration-[#3b82f6]'
+                  ? 'text-[var(--primary)] underline underline-offset-4 decoration-[var(--primary)]'
                   : 'text-[var(--text-dimmed)] hover:text-[var(--text-secondary)]'
                 }`}>
               {tab}
@@ -53,7 +53,7 @@ export default function LogsPanel() {
               <div
                 onClick={() => setFilters(f => ({ ...f, [level]: !f[level] }))}
                 className={`w-4 h-4 rounded flex items-center justify-center border transition-colors cursor-pointer shrink-0
-                  ${filters[level] ? 'bg-[#3b82f6] border-[#3b82f6]' : 'bg-transparent border-[var(--border-node)] hover:border-[var(--border-node-hover)]'}`}>
+                  ${filters[level] ? 'bg-[var(--primary)] border-[var(--primary)]' : 'bg-transparent border-[var(--border-node)] hover:border-[var(--border-node-hover)]'}`}>
                 {filters[level] && (
                   <svg viewBox="0 0 10 8" className="w-2.5 h-2.5">
                     <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" />
@@ -73,7 +73,7 @@ export default function LogsPanel() {
           <span className="text-xs text-[var(--text-dimmed)]">Auto-scroll</span>
           <button onClick={() => setAutoScroll(v => !v)}
             className={`w-10 h-5 rounded-full relative transition-colors shrink-0
-              ${autoScroll ? 'bg-[#3b82f6]' : 'bg-[var(--bg-toggle-off)]'}`}>
+              ${autoScroll ? 'bg-[var(--primary)]' : 'bg-[var(--bg-toggle-off)]'}`}>
             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all
               ${autoScroll ? 'right-0.5' : 'left-0.5'}`} />
           </button>
@@ -97,7 +97,7 @@ export default function LogsPanel() {
               <span className="text-[var(--text-faint)] shrink-0 w-[58px]">{l.ts}</span>
               <span className="text-[var(--text-dimmed)] shrink-0 w-[80px] truncate">{l.process}</span>
               <span className={`shrink-0 w-[46px] font-bold
-                ${l.level === 'fatal' ? 'text-red-300' : l.level === 'error' ? 'text-amber-400' : 'text-[#3b82f6]'}`}>
+                ${l.level === 'fatal' ? 'text-red-300' : l.level === 'error' ? 'text-amber-400' : 'text-[var(--primary)]'}`}>
                 {l.level.toUpperCase()}
               </span>
               <span className={l.level === 'fatal' || l.level === 'error' ? 'text-red-300' : 'text-[var(--text-secondary)]'}>{l.msg}</span>
