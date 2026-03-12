@@ -21,7 +21,7 @@ export default function ControlPage() {
     stacks, stackOrder, activeStack, setActiveStack,
     selectedProc, setSelectedProc,
     viewMode, setViewMode,
-    addStack, renameStack, cloneStack, deleteStack, saveStack,
+    addStack, renameStack, cloneStack, deleteStack, saveStack, reorderStacks,
     startAll, stopAll, startProcess, stopProcess,
     statuses, jsonStatus, stacksLoading, statusesLoading,
   } = useControl()
@@ -33,6 +33,8 @@ export default function ControlPage() {
   const [showClone, setShowClone]   = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [activeDrag, setActiveDrag] = useState<string | null>(null)
+  const [dragTab, setDragTab] = useState<string | null>(null)
+  const [dragOverTab, setDragOverTab] = useState<string | null>(null)
 
   const stacksRef = useRef(stacks)
   useEffect(() => { stacksRef.current = stacks }, [stacks])
@@ -126,8 +128,25 @@ export default function ControlPage() {
               <div className="tab-scroll min-w-0 overflow-x-auto">
                 <div className="flex items-center gap-1.5 ml-3 w-max">
                   {stackNames.map(name => (
-                    <button key={name} onClick={() => { setActiveStack(name); setSelectedProc(null) }}
-                      className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors
+                    <div key={name} className={`relative flex items-center ${dragOverTab === name && dragTab !== name ? 'before:absolute before:-left-1 before:top-0.5 before:bottom-0.5 before:w-0.5 before:rounded-full before:bg-blue-400' : ''}`}>
+                    <button
+                      draggable
+                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragTab(name) }}
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverTab(name) }}
+                      onDragLeave={() => setDragOverTab(null)}
+                      onDrop={e => {
+                        e.preventDefault()
+                        if (dragTab && dragTab !== name) {
+                          const next = stackNames.filter(n => n !== dragTab)
+                          next.splice(next.indexOf(name), 0, dragTab)
+                          reorderStacks(next)
+                        }
+                        setDragTab(null); setDragOverTab(null)
+                      }}
+                      onDragEnd={() => { setDragTab(null); setDragOverTab(null) }}
+                      onClick={() => { setActiveStack(name); setSelectedProc(null) }}
+                      className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-grab active:cursor-grabbing
+                        ${dragTab === name ? 'opacity-40' : ''}
                         ${activeStack === name
                           ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)] border border-[var(--border-tab-active)]'
                           : 'text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
@@ -145,7 +164,21 @@ export default function ControlPage() {
                         </span>
                       )}
                     </button>
+                    </div>
                   ))}
+                  {/* Trailing drop zone — allows dropping after the last tab */}
+                  {dragTab && (
+                    <div
+                      className={`relative w-3 self-stretch ${dragOverTab === '__end__' ? 'before:absolute before:left-0 before:top-0.5 before:bottom-0.5 before:w-0.5 before:rounded-full before:bg-blue-400' : ''}`}
+                      onDragOver={e => { e.preventDefault(); setDragOverTab('__end__') }}
+                      onDragLeave={() => setDragOverTab(null)}
+                      onDrop={e => {
+                        e.preventDefault()
+                        if (dragTab) reorderStacks([...stackNames.filter(n => n !== dragTab), dragTab])
+                        setDragTab(null); setDragOverTab(null)
+                      }}
+                    />
+                  )}
                 </div>
               </div>
               <button onClick={() => setShowAdd(true)} title="Add stack"
