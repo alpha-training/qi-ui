@@ -198,6 +198,11 @@ export default function JsonPanel() {
     const trimmed = editName.trim()
     if (!trimmed || !selectedProc || !stack) { setEditingName(false); return }
     if (trimmed === selectedProc) { setEditingName(false); return }
+    const pkg = stack.processes[selectedProc]?.pkg
+    if (pkg && !new RegExp(`^${pkg}\\d+$`).test(trimmed)) {
+      setError(`Process name must be "${pkg}" followed by a number (e.g. ${pkg}1, ${pkg}2)`)
+      return
+    }
     if (stack.processes[trimmed]) {
       setError(`Process name "${trimmed}" already exists in this stack`)
       return  // keep editing open
