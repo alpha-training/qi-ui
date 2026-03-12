@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
@@ -34,6 +34,9 @@ export default function ControlPage() {
   const [showDelete, setShowDelete] = useState(false)
   const [activeDrag, setActiveDrag] = useState<string | null>(null)
 
+  const stacksRef = useRef(stacks)
+  useEffect(() => { stacksRef.current = stacks }, [stacks])
+
   const stackNames    = stackOrder
   const stack         = stacks[activeStack]
   const procNames     = useMemo(() => Object.keys(stack?.processes ?? {}), [stack])
@@ -65,7 +68,7 @@ export default function ControlPage() {
     setActiveDrag(null)
     const { active, over } = event
     if (over?.id !== 'canvas') return
-    const currentStack = stacks[activeStack]
+    const currentStack = stacksRef.current[activeStack]
     if (!currentStack) return
     const pkg = (active.data.current as { pkg: string }).pkg
     const name = autoName(pkg, currentStack.processes)
@@ -76,7 +79,7 @@ export default function ControlPage() {
       processes: { ...currentStack.processes, [name]: { pkg, port_offset: portOffset, ...defaults } },
     }
     saveStack(activeStack, updated)
-  }, [stacks, activeStack, saveStack])
+  }, [activeStack, saveStack])
 
   const handleAddStack = (name: string, description: string, basePort: number) => {
     addStack(name, {

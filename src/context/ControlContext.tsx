@@ -293,19 +293,15 @@ import {
 
     const startAll = useCallback(async (stackName: string) => {
       try {
-        if (connType === 'q') {
-          const procs = Object.keys(stacks[stackName]?.processes ?? {})
-          await Promise.all(procs.map(p => qApi.startProcess(stackName, p)))
-        } else {
-          await realApi.startAll(stackName)
-        }
+        const api = connType === 'q' ? qApi : realApi
+        await api.startAll(stackName)
         addLog('system', 'info', `All processes started in ${stackName}`)
         refreshStatuses()
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         addLog('system', 'error', `Start all failed for ${stackName}: ${msg}`)
       }
-    }, [stacks, addLog, connType, refreshStatuses])
+    }, [addLog, connType, refreshStatuses])
 
     const stopAll = useCallback(async (stackName: string) => {
       const procs = Object.keys(stacks[stackName]?.processes ?? {})
