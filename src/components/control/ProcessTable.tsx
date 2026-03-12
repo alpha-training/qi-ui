@@ -17,7 +17,7 @@ export default function ProcessTable() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-base)]" onClick={() => setSelectedProc(null)}>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         <table className="w-full text-sm text-left border-collapse">
           <thead className="sticky top-0 bg-[var(--bg-base)] z-10">
             <tr className="border-b border-[var(--border)]">

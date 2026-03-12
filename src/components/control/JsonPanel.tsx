@@ -263,15 +263,26 @@ export default function JsonPanel() {
 
   const handleCancel = useCallback(() => {
     if (!viewRef.current) return
+    const clean = lastSyncedJsonRef.current
+    isProgrammaticRef.current = true
     viewRef.current.dispatch({
-      changes: { from: 0, to: viewRef.current.state.doc.length, insert: initialJson },
+      changes: { from: 0, to: viewRef.current.state.doc.length, insert: clean },
     })
-    if (stack) updateStackLocal(activeStack, stacks[activeStack])
+    isProgrammaticRef.current = false
+    try {
+      const parsed = JSON.parse(clean)
+      if (selectedProc && stacksRef.current[activeStack]) {
+        const cur = stacksRef.current[activeStack]
+        updateStackLocalRef.current(activeStack, { ...cur, processes: { ...cur.processes, [selectedProc]: parsed } })
+      } else if (!selectedProc) {
+        updateStackLocalRef.current(activeStack, parsed)
+      }
+    } catch { /* ignore */ }
     setError(null)
     isDirtyRef.current = false
     setIsDirty(false)
     setJsonStatus('valid')
-  }, [initialJson, activeStack, stack, stacks, updateStackLocal, setJsonStatus])
+  }, [activeStack, selectedProc, setJsonStatus])
 
   return (
     <>
