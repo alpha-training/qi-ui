@@ -11,6 +11,20 @@ import {
 
   let _logId = 0
 
+  const STACK_ORDER_KEY  = 'qi_stack_order'
+  const ACTIVE_STACK_KEY = 'qi_active_stack'
+
+  function loadSavedOrder(): string[] {
+    try { return JSON.parse(localStorage.getItem(STACK_ORDER_KEY) ?? '[]') } catch { return [] }
+  }
+
+  function mergeOrder(saved: string[], backend: string[]): string[] {
+    return [
+      ...saved.filter(n => backend.includes(n)),
+      ...backend.filter(n => !saved.includes(n)),
+    ]
+  }
+
   interface ControlState {
     stacks: Record<string, Stack>
     stackOrder: string[]
@@ -35,6 +49,7 @@ import {
     deleteStack: (name: string) => Promise<void>
     saveStack: (name: string, stack: Stack) => Promise<void>      // persists to API
     updateStackLocal: (name: string, stack: Stack) => void        // live update, no API call
+    reorderStacks: (newOrder: string[]) => void
 
     clearLogs: () => void
 
@@ -93,6 +108,11 @@ import {
       }
     }, [stacksLoading])
 
+    // Persist active stack so browser refresh lands on the same tab
+    useEffect(() => {
+      if (activeStack) localStorage.setItem(ACTIVE_STACK_KEY, activeStack)
+    }, [activeStack])
+
     // ── Load stacks: try real API first, fall back to mock ───────────────────
     useEffect(() => {
       const api = connType === 'q' ? qApi : realApi
@@ -100,9 +120,10 @@ import {
         .then(async s => {
           hasRealStacksRef.current = true
           setStacks(s)
-          const order = Object.keys(s).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+          const order = mergeOrder(loadSavedOrder(), Object.keys(s))
           setStackOrder(order)
-          setActiveStack(order[0] ?? '')
+          const savedActive = localStorage.getItem(ACTIVE_STACK_KEY) ?? ''
+          setActiveStack(order.includes(savedActive) ? savedActive : (order[0] ?? ''))
           setStacksLoading(false)
           // Query current statuses immediately — don't wait for the hub's cron push
           if (connType === 'q') {
@@ -130,7 +151,7 @@ import {
             if (hasRealStacksRef.current) return
             mock.getStacks().then(s => {
               setStacks(s)
-              const order = Object.keys(s).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+              const order = mergeOrder(loadSavedOrder(), Object.keys(s))
               setStackOrder(order)
               setActiveStack(order[0] ?? '')
               setStacksLoading(false)
@@ -326,7 +347,7 @@ import {
     const addStack = useCallback(async (name: string, stack: Stack) => {
       const api = connType === 'q' ? qApi : realApi
       setStacks(s => ({ ...s, [name]: stack }))
-      setStackOrder(o => [...o, name].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
+      setStackOrder(o => [...o, name])
       setActiveStack(name)
       try {
         await api.saveStack(name, stack)
@@ -358,7 +379,7 @@ import {
         delete ns[oldName]
         return ns
       })
-      setStackOrder(o => o.map(n => n === oldName ? newName : n).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
+      setStackOrder(o => o.map(n => n === oldName ? newName : n))
       setStatuses(s => {
         const ns = { ...s, [newName]: s[oldName] ?? {} }
         delete ns[oldName]
@@ -380,7 +401,7 @@ import {
       // Apply new base_port and description, then persist
       const updated = { ...cloned, base_port: basePort, description }
       setStacks(s => ({ ...s, [newName]: updated }))
-      setStackOrder(o => [...o, newName].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
+      setStackOrder(o => [...o, newName])
       setActiveStack(newName)
       try {
         await api.saveStack(newName, updated)
@@ -428,6 +449,11 @@ import {
       setStacks(s => ({ ...s, [name]: stack }))
     }, [])
 
+    const reorderStacks = useCallback((newOrder: string[]) => {
+      setStackOrder(newOrder)
+      localStorage.setItem(STACK_ORDER_KEY, JSON.stringify(newOrder))
+    }, [])
+
     return (
       <ControlContext.Provider value={{
         stacks, stackOrder, activeStack, setActiveStack,
@@ -436,7 +462,7 @@ import {
         jsonStatus, setJsonStatus,
         connected, stacksLoading, statusesLoading,
         clearLogs,
-        addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal,
+        addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal, reorderStacks,
         startProcess, stopProcess, startAll, stopAll,
       }}>
         {children}

@@ -371,7 +371,7 @@ export default function JsonPanel() {
         )}
 
         {/* Editor */}
-        <div className={`flex-1 min-h-0 overflow-auto ${isLocked ? '[&_.cm-content]:!cursor-default [&_.cm-cursor]:!opacity-0' : ''}`}>
+        <div className={`flex-1 min-h-0 overflow-auto transition-opacity ${isLocked ? 'opacity-50 [&_.cm-content]:!cursor-default [&_.cm-cursor]:!opacity-0' : ''}`}>
           <div ref={editorRef} className="h-full" />
         </div>
 
