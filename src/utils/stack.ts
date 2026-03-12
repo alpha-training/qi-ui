@@ -15,10 +15,11 @@ export function assignPortOffset(pkg: string, processes: Record<string, Process>
       if (!used.has(i)) return i
     }
   } else if (pkg in FIXED_PORT_OFFSETS) {
-    return FIXED_PORT_OFFSETS[pkg]
+    const fixed = FIXED_PORT_OFFSETS[pkg]
+    if (!used.has(fixed)) return fixed
   }
 
-  // Others (or feed overflow): next available >= 14
+  // Others (or fixed/feed overflow): next available >= 14
   let offset = 14
   while (used.has(offset)) offset++
   return offset
