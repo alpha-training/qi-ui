@@ -1,7 +1,7 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import ReactFlow, {
   Background, Controls, BackgroundVariant,
-  type Edge, type Node, MarkerType,
+  type Edge, type Node, type ReactFlowInstance, MarkerType,
 } from 'reactflow'
 import { useDroppable } from '@dnd-kit/core'
 import 'reactflow/dist/style.css'
@@ -25,6 +25,14 @@ const MARKER_COLORS = {
 export default function StackCanvas() {
   const { stacks, activeStack, statuses, selectedProc, setSelectedProc } = useControl()
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas' })
+  const rfRef = useRef<ReactFlowInstance | null>(null)
+
+  // Re-fit view whenever the active stack changes and nodes are available
+  useEffect(() => {
+    if (rfRef.current && nodes.length > 0) {
+      setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50)
+    }
+  }, [activeStack]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
@@ -73,7 +81,7 @@ export default function StackCanvas() {
         onPaneClick={onPaneClick}
         fitView
         fitViewOptions={{ padding: 0.3, minZoom: 0.5, maxZoom: 1 }}
-        onInit={rf => setTimeout(() => rf.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50)}
+        onInit={rf => { rfRef.current = rf; setTimeout(() => rf.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50) }}
         minZoom={0.3}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
