@@ -13,7 +13,13 @@ export default function LogsPanel() {
   const procNames = Object.keys(stacks[activeStack]?.processes ?? {})
   const tabs = ['All', ...procNames]
 
-  const activeTab = selectedProc && procNames.includes(selectedProc) ? selectedProc : manualTab
+  // Sync manualTab when selectedProc changes (clicking a process node auto-filters logs)
+  useEffect(() => {
+    if (selectedProc && procNames.includes(selectedProc)) setManualTab(selectedProc)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProc])
+
+  const activeTab = manualTab
 
   const filtered = logs.filter(l => {
     const tabMatch = activeTab === 'All' || l.process === activeTab
