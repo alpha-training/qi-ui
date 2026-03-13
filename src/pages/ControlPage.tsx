@@ -182,7 +182,7 @@ export default function ControlPage() {
                 </div>
               </div>
               <button onClick={() => setShowAdd(true)} title="Add stack"
-                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-[var(--text-dimmed)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover-md)]">
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-[var(--text-dimmed)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover-md)] cursor-pointer">
                 <Plus size={13} />
               </button>
             </div>
