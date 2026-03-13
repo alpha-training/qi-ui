@@ -58,6 +58,9 @@ export default function JsonPanel() {
   const [editingName, setEditingName] = useState(false)
   const [editName, setEditName]   = useState('')
   const [unsavedNav, setUnsavedNav] = useState<UnsavedNav | null>(null)
+  const [unsavedNavError, setUnsavedNavError] = useState<string | null>(null)
+  // reset error when dialog opens/closes
+  useEffect(() => { if (!unsavedNav) setUnsavedNavError(null) }, [unsavedNav])
 
   // Keep refs current on every render so effects always read fresh values
   stacksRef.current = stacks
@@ -98,6 +101,12 @@ export default function JsonPanel() {
             label,
             save: async () => {
               if (oldProcName) {
+                const po = parsed.port_offset
+                if (typeof po !== 'number' || !Number.isInteger(po) || po < 0)
+                  throw new Error('port_offset must be a non-negative integer')
+                const conflict = Object.entries(oldStack.processes)
+                  .find(([n, p]) => n !== oldProcName && p.port_offset === po)
+                if (conflict) throw new Error(`port_offset ${po} is already used by "${conflict[0]}"`)
                 await saveStack(oldStackName, {
                   ...oldStack,
                   processes: { ...oldStack.processes, [oldProcName]: parsed },
@@ -299,11 +308,14 @@ export default function JsonPanel() {
               <AlertTriangle size={16} className="text-amber-400 shrink-0" />
               <h3 className="font-bold text-base text-[var(--text-primary)]">Unsaved changes</h3>
             </div>
-            <p className="text-sm text-[var(--text-muted)] mb-5 leading-relaxed">
+            <p className="text-sm text-[var(--text-muted)] mb-3 leading-relaxed">
               Changes to{' '}
               <span className="font-semibold text-[var(--text-primary)]">{unsavedNav.label}</span>
               {' '}haven't been saved. Do you want to save them?
             </p>
+            {unsavedNavError && (
+              <p className="text-xs text-red-400 mb-4">{unsavedNavError}</p>
+            )}
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => { unsavedNav.discard(); setUnsavedNav(null) }}
@@ -311,14 +323,16 @@ export default function JsonPanel() {
                   text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-btn-hover)] transition-all">
                 Discard
               </button>
-              <button
-                onClick={async () => {
-                  try { await unsavedNav.save() } catch { /* ignore */ }
-                  setUnsavedNav(null)
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-all">
-                Save
-              </button>
+              {!unsavedNavError && (
+                <button
+                  onClick={async () => {
+                    try { await unsavedNav.save(); setUnsavedNav(null) }
+                    catch (e) { setUnsavedNavError(e instanceof Error ? e.message : String(e)) }
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-all">
+                  Save
+                </button>
+              )}
             </div>
           </div>
         </div>
