@@ -26,13 +26,21 @@ export default function StackCanvas() {
   const { stacks, activeStack, statuses, selectedProc, setSelectedProc } = useControl()
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas' })
   const rfRef = useRef<ReactFlowInstance | null>(null)
+  const prevNodeCountRef = useRef(0)
 
-  // Re-fit view whenever the active stack changes and nodes are available
+  // Re-fit view whenever the active stack changes, or when nodes first appear (e.g. stacks load after ReactFlow mounts)
   useEffect(() => {
     if (rfRef.current && nodes.length > 0) {
       setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50)
     }
   }, [activeStack]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (nodes.length > 0 && prevNodeCountRef.current === 0 && rfRef.current) {
+      setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 100)
+    }
+    prevNodeCountRef.current = nodes.length
+  }, [nodes.length])
 
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
