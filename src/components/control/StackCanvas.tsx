@@ -35,13 +35,6 @@ export default function StackCanvas() {
     }
   }, [activeStack]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (nodes.length > 0 && prevNodeCountRef.current === 0 && rfRef.current) {
-      setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 100)
-    }
-    prevNodeCountRef.current = nodes.length
-  }, [nodes.length])
-
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
 
@@ -69,6 +62,14 @@ export default function StackCanvas() {
       },
     }))
   }, [stack])
+
+  // Fit view when nodes first appear after async stack load (handles case where ReactFlow mounted before data arrived)
+  useEffect(() => {
+    if (nodes.length > 0 && prevNodeCountRef.current === 0 && rfRef.current) {
+      setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 100)
+    }
+    prevNodeCountRef.current = nodes.length
+  }, [nodes.length])
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedProc(node.id === selectedProc ? null : node.id)
