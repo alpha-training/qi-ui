@@ -33,11 +33,13 @@ function DraggableItem({ pkg }: { pkg: PalettePkg }) {
 
 export default function ProcessPalette() {
   return (
-    <div className="w-[168px] shrink-0 flex flex-col gap-1.5 px-3 py-4 border-r border-[var(--border-subtle)]">
-      <p className="text-[var(--text-primary)] text-lg font-bold mb-2 px-1">Processes</p>
-      {PALETTE_PKGS.map(pkg => (
-        <DraggableItem key={pkg} pkg={pkg} />
-      ))}
+    <div className="w-[168px] shrink-0 flex flex-col min-h-0 px-3 py-4 border-r border-[var(--border-subtle)] overflow-y-auto">
+      <p className="text-[var(--text-primary)] text-lg font-bold mb-2 px-1 shrink-0">Processes</p>
+      <div className="flex flex-col gap-1.5">
+        {PALETTE_PKGS.map(pkg => (
+          <DraggableItem key={pkg} pkg={pkg} />
+        ))}
+      </div>
     </div>
   )
 }
