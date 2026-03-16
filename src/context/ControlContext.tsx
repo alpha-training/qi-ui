@@ -108,6 +108,7 @@ import {
       }
     }, [stacksLoading])
 
+    
     // Persist active stack so browser refresh lands on the same tab
     useEffect(() => {
       if (activeStack) localStorage.setItem(ACTIVE_STACK_KEY, activeStack)
