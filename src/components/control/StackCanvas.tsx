@@ -38,9 +38,10 @@ export default function StackCanvas() {
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
 
-  // Only remount ReactFlow when switching stacks — not on every process addition.
-  // Node additions/removals are handled in-place; remounting causes a visible flicker.
-  const graphKey = activeStack
+  // Remount ReactFlow when the set of processes changes (add/remove) or when switching stacks.
+  // This avoids React Flow v11's in-place update bug where nodes stop rendering after a drag-drop.
+  const nodeIds = Object.keys(stack?.processes ?? {}).sort().join(',')
+  const graphKey = `${activeStack}::${nodeIds}`
 
   const nodes: Node[] = useMemo(
     () => stack ? deriveGraphNodes(stack, stackStatuses) : [],
@@ -77,6 +78,10 @@ export default function StackCanvas() {
 
   const onPaneClick = useCallback(() => setSelectedProc(null), [setSelectedProc])
 
+  // Required for React Flow v10 controlled mode — without this, React Flow treats
+  // the initial `nodes` prop as internal state and ignores subsequent updates.
+  const onNodesChange = useCallback(() => {}, [])
+
   return (
     <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[var(--bg-canvas-over)]' : 'bg-[var(--bg-canvas)]'}`}>
       <ReactFlow
@@ -88,6 +93,7 @@ export default function StackCanvas() {
         nodesConnectable={false}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodesChange={onNodesChange}
         fitView
         fitViewOptions={{ padding: 0.3, minZoom: 0.5, maxZoom: 1 }}
         onInit={rf => { rfRef.current = rf; setTimeout(() => rf.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50) }}
