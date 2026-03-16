@@ -20,7 +20,7 @@ function ApiStatus() {
       {!connected && (
         <button
           onClick={() => window.location.reload()}
-          className="text-xs text-blue-400 hover:text-blue-300 transition-colors ml-0.5 leading-none"
+          className="text-xs text-blue-400 hover:text-blue-300 transition-colors ml-0.5"
           title="Reconnect"
         >
           Reconnect
