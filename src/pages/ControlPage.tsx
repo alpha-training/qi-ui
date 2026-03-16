@@ -125,7 +125,10 @@ export default function ControlPage() {
 
             {/* Stack tabs — scrollable, + always pinned outside */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <div className="tab-scroll min-w-0 overflow-x-auto">
+              <div className="tab-scroll min-w-0 overflow-x-auto"
+                onDragOver={dragTab ? (e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }) : undefined}
+                onDrop={dragTab ? (e => e.preventDefault()) : undefined}
+              >
                 <div className="flex items-center gap-1.5 ml-3 w-max">
                   {stackNames.map(name => (
                     <div key={name} className={`relative flex items-center ${dragOverTab === name && dragTab !== name ? 'before:absolute before:-left-1 before:top-0.5 before:bottom-0.5 before:w-0.5 before:rounded-full before:bg-blue-400' : ''}`}>

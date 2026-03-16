@@ -64,7 +64,7 @@ export default function StackCanvas() {
     }))
   }, [stack])
 
-  // Fit view when nodes first appear after async stack load (handles case where ReactFlow mounted before data arrived)
+  // Fit view when nodes first appear after async stack load
   useEffect(() => {
     if (nodes.length > 0 && prevNodeCountRef.current === 0 && rfRef.current) {
       setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 100)
@@ -78,8 +78,6 @@ export default function StackCanvas() {
 
   const onPaneClick = useCallback(() => setSelectedProc(null), [setSelectedProc])
 
-  // Required for React Flow v10 controlled mode — without this, React Flow treats
-  // the initial `nodes` prop as internal state and ignores subsequent updates.
   const onNodesChange = useCallback(() => {}, [])
 
   return (
