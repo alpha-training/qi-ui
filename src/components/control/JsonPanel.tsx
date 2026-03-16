@@ -115,6 +115,8 @@ export default function JsonPanel() {
                 const bp = parsed.base_port
                 if (typeof bp !== 'number' || !Number.isInteger(bp) || bp < 1024 || bp > 65535)
                   throw new Error('base_port must be an integer between 1024 and 65535')
+                const bpConflict = Object.entries(stacksRef.current).find(([n, s]) => n !== oldStackName && s.base_port === bp)
+                if (bpConflict) throw new Error(`base_port ${bp} is already used by stack "${bpConflict[0]}"`)
                 await saveStack(oldStackName, parsed)
               }
             },
@@ -247,6 +249,8 @@ export default function JsonPanel() {
         const bp = parsed.base_port
         if (typeof bp !== 'number' || !Number.isInteger(bp) || bp < 1024 || bp > 65535)
           throw new Error('base_port must be an integer between 1024 and 65535')
+        const portConflict = Object.entries(stacksRef.current).find(([n, s]) => n !== activeStack && s.base_port === bp)
+        if (portConflict) throw new Error(`base_port ${bp} is already used by stack "${portConflict[0]}"`)
         const offsets = Object.entries(parsed.processes ?? {}) as [string, { port_offset: number }][]
         const seen = new Map<number, string>()
         for (const [name, proc] of offsets) {

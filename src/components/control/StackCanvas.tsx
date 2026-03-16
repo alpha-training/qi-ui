@@ -38,9 +38,10 @@ export default function StackCanvas() {
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
 
-  // Only remount ReactFlow when switching stacks — not on every process addition.
-  // Node additions/removals are handled in-place; remounting causes a visible flicker.
-  const graphKey = activeStack
+  // Remount ReactFlow when the set of processes changes (add/remove) or when switching stacks.
+  // This avoids React Flow v11's in-place update bug where nodes stop rendering after a drag-drop.
+  const nodeIds = Object.keys(stack?.processes ?? {}).sort().join(',')
+  const graphKey = `${activeStack}::${nodeIds}`
 
   const nodes: Node[] = useMemo(
     () => stack ? deriveGraphNodes(stack, stackStatuses) : [],
