@@ -117,9 +117,10 @@ function ModalFooter({
 // ─── Add Stack Modal ──────────────────────────────────────────────────────────
 
 export function AddStackModal({
-  existingNames, suggestedPort, onAdd, onClose,
+  existingNames, existingPorts, suggestedPort, onAdd, onClose,
 }: {
   existingNames: string[]
+  existingPorts: number[]
   suggestedPort: number
   onAdd: (name: string, description: string, basePort: number) => void
   onClose: () => void
@@ -134,9 +135,10 @@ export function AddStackModal({
   const validate = () => {
     if (!name.trim()) return 'Stack name is required'
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) return 'Only letters, numbers, _ and - allowed'
-    if (existingNames.includes(name.trim())) return `"${name}" already exists`
+    if (existingNames.some(n => n.toLowerCase() === name.trim().toLowerCase())) return `"${name}" already exists`
     const p = parseInt(port)
     if (isNaN(p) || p < 1024 || p > 65535) return 'Port must be between 1024 and 65535'
+    if (existingPorts.includes(p)) return `Base port ${p} is already used by another stack`
     return null
   }
 
@@ -172,10 +174,11 @@ export function AddStackModal({
 // ─── Clone Stack Modal ────────────────────────────────────────────────────────
 
 export function CloneStackModal({
-  sourceName, existingNames, suggestedPort, onClone, onClose,
+  sourceName, existingNames, existingPorts, suggestedPort, onClone, onClose,
 }: {
   sourceName: string
   existingNames: string[]
+  existingPorts: number[]
   suggestedPort: number
   onClone: (newName: string, description: string, basePort: number) => void
   onClose: () => void
@@ -187,9 +190,10 @@ export function CloneStackModal({
 
   const handleConfirm = () => {
     if (!name.trim()) { setError('Name is required'); return }
-    if (existingNames.includes(name.trim())) { setError(`"${name}" already exists`); return }
+    if (existingNames.some(n => n.toLowerCase() === name.trim().toLowerCase())) { setError(`"${name}" already exists`); return }
     const p = parseInt(port)
     if (isNaN(p) || p < 1024 || p > 65535) { setError('Port must be between 1024 and 65535'); return }
+    if (existingPorts.includes(p)) { setError(`Base port ${p} is already used by another stack`); return }
     onClone(name.trim(), desc.trim(), p)
     onClose()
   }
@@ -237,7 +241,7 @@ export function RenameStackModal({
     const trimmed = name.trim()
     if (!trimmed) { setError('Name is required'); return }
     if (trimmed === stackName) { onClose(); return }
-    if (existingNames.filter(n => n !== stackName).includes(trimmed)) {
+    if (existingNames.some(n => n !== stackName && n.toLowerCase() === trimmed.toLowerCase())) {
       setError(`"${trimmed}" already exists`); return
     }
     onRename(trimmed)

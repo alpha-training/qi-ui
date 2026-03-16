@@ -77,6 +77,10 @@ export default function StackCanvas() {
 
   const onPaneClick = useCallback(() => setSelectedProc(null), [setSelectedProc])
 
+  // Required for React Flow v10 controlled mode — without this, React Flow treats
+  // the initial `nodes` prop as internal state and ignores subsequent updates.
+  const onNodesChange = useCallback(() => {}, [])
+
   return (
     <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[var(--bg-canvas-over)]' : 'bg-[var(--bg-canvas)]'}`}>
       <ReactFlow
@@ -88,6 +92,7 @@ export default function StackCanvas() {
         nodesConnectable={false}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodesChange={onNodesChange}
         fitView
         fitViewOptions={{ padding: 0.3, minZoom: 0.5, maxZoom: 1 }}
         onInit={rf => { rfRef.current = rf; setTimeout(() => rf.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50) }}
