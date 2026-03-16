@@ -32,7 +32,7 @@ export default function LogsPanel() {
   }, [filtered.length, autoScroll])
 
   return (
-    <div className="h-60 border-t border-[var(--border)] bg-[var(--bg-base)] flex flex-col shrink-0">
+    <div className="h-56 border-t border-[var(--border)] bg-[var(--bg-base)] flex flex-col shrink-0">
 
       {/* Row 1: "Logs:" label + process tabs */}
       <div className="flex items-center gap-3 px-5 pt-3 pb-1 flex-wrap">
