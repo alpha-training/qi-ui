@@ -3,7 +3,7 @@ import { ChevronsDown, Trash2 } from 'lucide-react'
 import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
-export default function LogsPanel() {
+export default function LogsPanel(props: { height: number }) {
   const { logs, clearLogs, stacks, activeStack, selectedProc } = useControl()
   const [manualTab, setManualTab] = useState<string>('All')
   const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, fatal: true })
@@ -37,7 +37,7 @@ export default function LogsPanel() {
   }, [filtered.length, autoScroll])
 
   return (
-    <div className="h-56 border-t border-[var(--border)] bg-[var(--bg-base)] flex flex-col shrink-0">
+    <div className="border-t border-[var(--border)] bg-[var(--bg-base)] flex flex-col shrink-0" style={{ height: props.height }}>
 
       {/* Row 1: "Logs:" label + process tabs */}
       <div className="flex items-center gap-3 px-5 pt-3 pb-1 flex-wrap">

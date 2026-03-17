@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
@@ -25,6 +25,52 @@ export default function ControlPage() {
     startAll, stopAll, startProcess, stopProcess,
     statuses, jsonStatus, stacksLoading, statusesLoading,
   } = useControl()
+
+  const [logsHeight,    setLogsHeight]    = useState(() => parseInt(localStorage.getItem('qi_logs_height')    ?? '224'))
+  const [jsonWidth,     setJsonWidth]     = useState(() => parseInt(localStorage.getItem('qi_json_width')     ?? '320'))
+  const [paletteWidth,  setPaletteWidth]  = useState(() => parseInt(localStorage.getItem('qi_palette_width')  ?? '168'))
+
+  const handleLogsResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const startH = logsHeight
+    const onMove = (ev: MouseEvent) => {
+      const h = Math.max(80, Math.min(600, startH + startY - ev.clientY))
+      setLogsHeight(h)
+      localStorage.setItem('qi_logs_height', String(h))
+    }
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [logsHeight])
+
+  const handlePaletteResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = paletteWidth
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(100, Math.min(320, startW + ev.clientX - startX))
+      setPaletteWidth(w)
+      localStorage.setItem('qi_palette_width', String(w))
+    }
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [paletteWidth])
+
+  const handleJsonResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = jsonWidth
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(200, Math.min(640, startW + startX - ev.clientX))
+      setJsonWidth(w)
+      localStorage.setItem('qi_json_width', String(w))
+    }
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [jsonWidth])
 
   const [showMenu, setShowMenu]         = useState(false)
   const [menuAnchor, setMenuAnchor]     = useState<{ top: number; left: number } | null>(null)
@@ -245,7 +291,7 @@ export default function ControlPage() {
               invalid: { label: 'Invalid',         dot: 'bg-red-400 shadow-[0_0_6px_#f87171]',   text: 'text-red-400'   },
             }[jsonStatus]
             return (
-              <div className="w-80 shrink-0 flex items-center justify-between px-5 border-l border-[var(--border)]">
+              <div className="shrink-0 flex items-center justify-between px-5 border-l border-[var(--border)]" style={{ width: jsonWidth }}>
                 <span className="text-sm font-bold text-[var(--text-primary)]">JSON Config</span>
                 <span className={`flex items-center gap-2 text-xs font-semibold ${cfg.text}`}>
                   <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
@@ -272,14 +318,31 @@ export default function ControlPage() {
                 </div>
               ) : (
                 <>
-                  {viewMode === 'graph' && <ProcessPalette />}
+                  {viewMode === 'graph' && <ProcessPalette width={paletteWidth} />}
+                  {viewMode === 'graph' && (
+                    <div className="shrink-0 w-1 cursor-col-resize group flex items-stretch justify-center" onMouseDown={handlePaletteResize}>
+                      <div className="w-px bg-[var(--border)] group-hover:bg-blue-500/60 transition-colors flex-1" />
+                    </div>
+                  )}
                   {viewMode === 'graph' ? <StackCanvas /> : <ProcessTable key={activeStack} />}
                 </>
               )}
             </div>
-            <LogsPanel key={activeStack} />
+            <div
+              className="shrink-0 h-1 cursor-row-resize group"
+              onMouseDown={handleLogsResize}
+            >
+              <div className="h-px bg-[var(--border)] group-hover:bg-blue-500/60 transition-colors" />
+            </div>
+            <LogsPanel key={activeStack} height={logsHeight} />
           </div>
-          <JsonPanel />
+          <div
+            className="shrink-0 w-1 cursor-col-resize group flex items-stretch"
+            onMouseDown={handleJsonResize}
+          >
+            <div className="w-px bg-[var(--border)] group-hover:bg-blue-500/60 transition-colors flex-1" />
+          </div>
+          <JsonPanel width={jsonWidth} />
         </div>
       </div>
 

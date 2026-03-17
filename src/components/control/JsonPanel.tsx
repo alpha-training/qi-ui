@@ -29,7 +29,7 @@ interface UnsavedNav {
   discard: () => void
 }
 
-export default function JsonPanel() {
+export default function JsonPanel(props: { width: number }) {
   const { stacks, statuses, activeStack, selectedProc, setSelectedProc, saveStack, updateStackLocal, jsonStatus, setJsonStatus } = useControl()
 
   const stackStatuses = statuses[activeStack] ?? {}
@@ -343,8 +343,8 @@ export default function JsonPanel() {
       )}
 
       {/* ── Panel ───────────────────────────────────────────────── */}
-      <div className="w-80 shrink-0 flex flex-col bg-[var(--bg-panel)] border-l border-[var(--border)]"
-        style={{ height: '100%', overflow: 'hidden' }}>
+      <div className="shrink-0 flex flex-col bg-[var(--bg-panel)] border-l border-[var(--border)]"
+        style={{ height: '100%', overflow: 'hidden', width: props.width }}>
 
         {/* Process name bar */}
         {selectedProc && (

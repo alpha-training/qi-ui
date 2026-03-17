@@ -31,9 +31,9 @@ function DraggableItem({ pkg }: { pkg: PalettePkg }) {
   )
 }
 
-export default function ProcessPalette() {
+export default function ProcessPalette(props: { width: number }) {
   return (
-    <div className="w-[168px] shrink-0 flex flex-col min-h-0 px-3 py-4 border-r border-[var(--border-subtle)] overflow-y-auto">
+    <div className="shrink-0 flex flex-col min-h-0 px-3 py-4 border-r border-[var(--border-subtle)] overflow-y-auto" style={{ width: props.width }}>
       <p className="text-[var(--text-primary)] text-lg font-bold mb-2 px-1 shrink-0">Processes</p>
       <div className="flex flex-col gap-1.5">
         {PALETTE_PKGS.map(pkg => (
