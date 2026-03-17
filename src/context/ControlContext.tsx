@@ -283,6 +283,18 @@ import {
         setStatus(stackName, proc, 'running')
         addLog(proc, 'info', `${proc} started`)
         refreshStatuses()
+        // Watchdog: warn if process is still down after 7s (crashed before connecting to hub)
+        if (connType === 'q') {
+          setTimeout(async () => {
+            try {
+              const rows = await qApi.getStatuses()
+              const row = rows.find(r => r.stackname === stackName && r.name.split('.')[0] === proc)
+              if (row && row.status !== 'up' && row.status !== 'busy') {
+                addLog(proc, 'error', `${proc} failed to start — check ~/projects/qi/data/${stackName}/logs/${proc}.log`)
+              }
+            } catch { /* ignore */ }
+          }, 7000)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('invalid process name')) {
@@ -290,10 +302,10 @@ import {
         } else {
           try { await mock.startProcess(stackName, proc) } catch { /* ignore */ }
           addLog(proc, 'error', `${proc} start failed: ${msg}`)
-          setStatus(stackName, proc, 'running')
+          setStatus(stackName, proc, 'stopped')
         }
       }
-    }, [addLog, connType])
+    }, [addLog, connType, refreshStatuses])
 
     const stopProcess = useCallback(async (stackName: string, proc: string) => {
       const api = connType === 'q' ? qApi : realApi
@@ -319,6 +331,19 @@ import {
         await api.startAll(stackName)
         addLog('system', 'info', `All processes started in ${stackName}`)
         refreshStatuses()
+        // Watchdog: warn about any processes still down after 10s
+        if (connType === 'q') {
+          setTimeout(async () => {
+            try {
+              const rows = await qApi.getStatuses()
+              const failed = rows.filter(r => r.stackname === stackName && r.status !== 'up' && r.status !== 'busy')
+              for (const r of failed) {
+                const proc = r.name.split('.')[0]
+                addLog(proc, 'error', `${proc} failed to start — check ~/projects/qi/data/${stackName}/logs/${proc}.log`)
+              }
+            } catch { /* ignore */ }
+          }, 10000)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         addLog('system', 'error', `Start all failed for ${stackName}: ${msg}`)

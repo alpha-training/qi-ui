@@ -23,28 +23,22 @@ const MARKER_COLORS = {
 }
 
 export default function StackCanvas() {
-  const { stacks, activeStack, statuses, selectedProc, setSelectedProc } = useControl()
+  const { stacks, activeStack, selectedProc, setSelectedProc } = useControl()
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas' })
   const rfRef = useRef<ReactFlowInstance | null>(null)
   const prevNodeCountRef = useRef(0)
 
-  // Re-fit view whenever the active stack changes, or when nodes first appear (e.g. stacks load after ReactFlow mounts)
-  useEffect(() => {
-    if (rfRef.current && nodes.length > 0) {
-      setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50)
-    }
-  }, [activeStack]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const stack = stacks[activeStack]
-  const stackStatuses = statuses[activeStack] ?? {}
 
-  // Remount ReactFlow only when switching stacks, not when processes change.
-  // nodesDraggable={false} means we're in fully controlled mode — nodes update in-place without bugs.
-  const graphKey = activeStack
+  // graphKey remounts ReactFlow when processes are added/removed or stack switches.
+  // Status updates no longer change `nodes` (ProcessNode reads status from context directly),
+  // so React Flow v11's in-place update bug is never triggered.
+  const nodeIds = Object.keys(stack?.processes ?? {}).sort().join(',')
+  const graphKey = `${activeStack}::${nodeIds}`
 
   const nodes: Node[] = useMemo(
-    () => stack ? deriveGraphNodes(stack, stackStatuses) : [],
-    [stack, stackStatuses],
+    () => stack ? deriveGraphNodes(stack) : [],
+    [stack],
   )
 
   const edges: Edge[] = useMemo(() => {
@@ -62,6 +56,13 @@ export default function StackCanvas() {
       },
     }))
   }, [stack])
+
+  // Re-fit view whenever the active stack changes
+  useEffect(() => {
+    if (rfRef.current && nodes.length > 0) {
+      setTimeout(() => rfRef.current?.fitView({ padding: 0.3, minZoom: 0.5, maxZoom: 1 }), 50)
+    }
+  }, [activeStack]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fit view when nodes first appear after async stack load
   useEffect(() => {
@@ -118,8 +119,6 @@ export default function StackCanvas() {
           </span>
         </div>
       )}
-
-      {/* U/D keyboard hint hidden for now */}
     </div>
   )
 }
