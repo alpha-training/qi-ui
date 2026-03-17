@@ -38,10 +38,9 @@ export default function StackCanvas() {
   const stack = stacks[activeStack]
   const stackStatuses = statuses[activeStack] ?? {}
 
-  // Remount ReactFlow when the set of processes changes (add/remove) or when switching stacks.
-  // This avoids React Flow v11's in-place update bug where nodes stop rendering after a drag-drop.
-  const nodeIds = Object.keys(stack?.processes ?? {}).sort().join(',')
-  const graphKey = `${activeStack}::${nodeIds}`
+  // Remount ReactFlow only when switching stacks, not when processes change.
+  // nodesDraggable={false} means we're in fully controlled mode — nodes update in-place without bugs.
+  const graphKey = activeStack
 
   const nodes: Node[] = useMemo(
     () => stack ? deriveGraphNodes(stack, stackStatuses) : [],

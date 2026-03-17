@@ -78,6 +78,7 @@ import {
     const [stacksLoading, setStacksLoading] = useState(true)
     const [statusesLoading, setStatusesLoading] = useState(true)
     const hasRealStacksRef = useRef(false)
+    const lastLogLevelRef = useRef<Record<string, LogEntry['level']>>({})
 
     // ── Re-initialise when connection changes ────────────────────────────────
     useEffect(() => {
@@ -176,7 +177,6 @@ import {
       const fileName = symStr.split('/').pop() ?? ''          // "tp1.log"
       const procName = fileName.replace(/\.log$/, '') || 'system'  // "tp1"
       const lines = Array.isArray(l.lines) ? l.lines : [String(l.lines ?? '')]
-      let lastLevel: LogEntry['level'] = 'info'
       for (const line of lines) {
         if (!line.trim()) continue
         // Line format: "2026.03.05D16:36:03.000000000 info 0 message here"
@@ -185,10 +185,10 @@ import {
         const knownLevel: LogEntry['level'] | null =
           rawLevel === 'fatal' ? 'fatal' : rawLevel === 'error' ? 'error' : rawLevel === 'info' ? 'info' : null
         if (knownLevel !== null) {
-          lastLevel = knownLevel
-          addLog(procName, lastLevel, parts.slice(3).join(' ') || line)
+          lastLogLevelRef.current[procName] = knownLevel
+          addLog(procName, knownLevel, parts.slice(3).join(' ') || line)
         } else {
-          addLog(procName, lastLevel, line)
+          addLog(procName, lastLogLevelRef.current[procName] ?? 'info', line)
         }
       }
     }, [addLog])
