@@ -19,6 +19,11 @@ export default function LogsPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProc])
 
+  // Reset to All if the selected tab no longer exists (process deleted or connection switched)
+  useEffect(() => {
+    if (manualTab !== 'All' && !procNames.includes(manualTab)) setManualTab('All')
+  }, [procNames, manualTab])
+
   const activeTab = manualTab
 
   const filtered = logs.filter(l => {
