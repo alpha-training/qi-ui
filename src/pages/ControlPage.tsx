@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
+  DndContext, DragOverlay, useSensor, useSensors, PointerSensor as PointerSensorBase,
   type DragEndEvent,
 } from '@dnd-kit/core'
+
+// Custom sensor that ignores drag-start on elements marked data-no-dnd
+// (used to prevent DndContext from blocking native HTML5 drag on stack tabs)
+class PointerSensor extends PointerSensorBase {
+  static activators = [
+    {
+      eventName: 'onPointerDown' as const,
+      handler: ({ nativeEvent }: React.PointerEvent) => {
+        if ((nativeEvent.target as HTMLElement)?.closest('[data-no-dnd]')) return false
+        return true
+      },
+    },
+  ]
+}
 import { Share2, List, Play, Square, Plus, MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import { useControl } from '../context/ControlContext'
 import { autoName, assignPortOffset } from '../utils/stack'
@@ -190,7 +204,7 @@ export default function ControlPage() {
 
             {/* Stack tabs — scrollable, + always pinned outside */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <div className="tab-scroll min-w-0 overflow-x-auto"
+              <div className="tab-scroll min-w-0 overflow-x-auto" data-no-dnd
                 onDragOver={dragTab ? (e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }) : undefined}
                 onDrop={dragTab ? (e => e.preventDefault()) : undefined}
               >
