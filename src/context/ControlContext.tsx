@@ -41,6 +41,7 @@ import {
     connected: boolean   // true = qi-cli API is reachable
     stacksLoading: boolean    // true while waiting for real stacks to arrive
     statusesLoading: boolean  // true until first stream push with process statuses
+    reconnect: () => void
 
     // Stack actions
     addStack: (name: string, stack: Stack) => Promise<void>
@@ -65,6 +66,9 @@ import {
   export function ControlProvider({ children }: { children: ReactNode }) {
     const { apiBase, activeConn } = useConnectionContext()
     const connType = activeConn?.type ?? 'q'
+
+    const [reconnectKey, setReconnectKey] = useState(0)
+    const reconnect = useCallback(() => setReconnectKey(k => k + 1), [])
 
     const [stacks, setStacks] = useState<Record<string, Stack>>({})
     const [stackOrder, setStackOrder] = useState<string[]>([])
@@ -93,7 +97,7 @@ import {
       if (connType === 'q' && activeConn) {
         qApi.setQBase(activeConn.host, activeConn.port)
       }
-    }, [apiBase, connType]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [apiBase, connType, reconnectKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Check API connectivity ────────────────────────────────────────────────
     useEffect(() => {
@@ -148,19 +152,13 @@ import {
           }
         })
         .catch(() => {
-          // Wait 3s for stream to deliver real stacks before falling back to mock
-          setTimeout(() => {
-            if (hasRealStacksRef.current) return
-            mock.getStacks().then(s => {
-              setStacks(s)
-              const order = mergeOrder(loadSavedOrder(), Object.keys(s))
-              setStackOrder(order)
-              setActiveStack(order[0] ?? '')
-              setStacksLoading(false)
-            })
-          }, 3000)
+          // Backend unreachable — show offline state immediately
+          if (!hasRealStacksRef.current) {
+            setStacksLoading(false)
+            setStatusesLoading(false)
+          }
         })
-    }, [apiBase, connType])
+    }, [apiBase, connType, reconnectKey])
 
     const addLog = useCallback((process: string, level: LogEntry['level'], msg: string) => {
       const ts = new Date().toTimeString().slice(0, 8)
@@ -283,6 +281,19 @@ import {
         setStatus(stackName, proc, 'running')
         addLog(proc, 'info', `${proc} started`)
         refreshStatuses()
+        // Watchdog: warn if process is still down after 7s (crashed before connecting to hub)
+        if (connType === 'q') {
+          setTimeout(async () => {
+            try {
+              const rows = await qApi.getStatuses()
+              const row = rows.find(r => r.stackname === stackName && r.name.split('.')[0] === proc)
+              if (row && row.status !== 'up' && row.status !== 'busy') {
+                addLog(proc, 'error', `${proc} failed to start — check ~/projects/qi/data/${stackName}/logs/${proc}.log`)
+                setStatus(stackName, proc, 'stopped')
+              }
+            } catch { /* ignore */ }
+          }, 7000)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('invalid process name')) {
@@ -290,10 +301,10 @@ import {
         } else {
           try { await mock.startProcess(stackName, proc) } catch { /* ignore */ }
           addLog(proc, 'error', `${proc} start failed: ${msg}`)
-          setStatus(stackName, proc, 'running')
+          setStatus(stackName, proc, 'stopped')
         }
       }
-    }, [addLog, connType])
+    }, [addLog, connType, refreshStatuses])
 
     const stopProcess = useCallback(async (stackName: string, proc: string) => {
       const api = connType === 'q' ? qApi : realApi
@@ -319,6 +330,19 @@ import {
         await api.startAll(stackName)
         addLog('system', 'info', `All processes started in ${stackName}`)
         refreshStatuses()
+        // Watchdog: warn about any processes still down after 10s
+        if (connType === 'q') {
+          setTimeout(async () => {
+            try {
+              const rows = await qApi.getStatuses()
+              const failed = rows.filter(r => r.stackname === stackName && r.status !== 'up' && r.status !== 'busy')
+              for (const r of failed) {
+                const proc = r.name.split('.')[0]
+                addLog(proc, 'error', `${proc} failed to start — check ~/projects/qi/data/${stackName}/logs/${proc}.log`)
+              }
+            } catch { /* ignore */ }
+          }, 10000)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         addLog('system', 'error', `Start all failed for ${stackName}: ${msg}`)
@@ -329,17 +353,31 @@ import {
       const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
         if (connType === 'q') {
-          await Promise.all(procs.map(p => qApi.stopProcess(stackName, p)))
+          const results = await Promise.allSettled(procs.map(p => qApi.stopProcess(stackName, p)))
+          const stopped = procs.filter((_, i) => results[i].status === 'fulfilled')
+          const failed  = procs.filter((_, i) => results[i].status === 'rejected')
+          if (stopped.length > 0) {
+            setStatuses(s => ({
+              ...s,
+              [stackName]: { ...s[stackName], ...Object.fromEntries(stopped.map(p => [p, 'stopped' as const])) },
+            }))
+          }
+          if (failed.length > 0) {
+            addLog('system', 'error', `Stop all: failed to stop ${failed.join(', ')}`)
+          } else {
+            addLog('system', 'info', `All processes stopped in ${stackName}`)
+          }
         } else {
           await realApi.stopAll(stackName)
+          addLog('system', 'info', `All processes stopped in ${stackName}`)
+          setStatuses(s => ({
+            ...s,
+            [stackName]: { ...s[stackName], ...Object.fromEntries(procs.map(p => [p, 'stopped' as const])) },
+          }))
         }
-        addLog('system', 'info', `All processes stopped in ${stackName}`)
-        setStatuses(s => ({
-          ...s,
-          [stackName]: { ...s[stackName], ...Object.fromEntries(procs.map(p => [p, 'stopped' as const])) },
-        }))
-      } catch {
-        addLog('system', 'error', `Stop all failed for ${stackName}`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog('system', 'error', `Stop all failed for ${stackName}: ${msg}`)
       }
     }, [stacks, addLog, connType])
 
@@ -461,7 +499,7 @@ import {
         selectedProc, setSelectedProc,
         statuses, viewMode, setViewMode, logs,
         jsonStatus, setJsonStatus,
-        connected, stacksLoading, statusesLoading,
+        connected, stacksLoading, statusesLoading, reconnect,
         clearLogs,
         addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal, reorderStacks,
         startProcess, stopProcess, startAll, stopAll,

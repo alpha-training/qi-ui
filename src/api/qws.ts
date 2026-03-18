@@ -89,7 +89,19 @@ function _ensureOpen(): Promise<void> {
     const ws = new WebSocket(`ws://${_host}:${_port}`)
     ws.binaryType = 'arraybuffer'
 
+    const connectTimer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        _wsReadyPromise = null
+        _wsReadyReject = null
+        ws.close()
+        _onStatusChange?.(false)
+        reject(new Error('WebSocket connect timeout'))
+      }
+    }, 5000)
+
     ws.onopen = () => {
+      clearTimeout(connectTimer)
       _ws = ws
       _wsReadyPromise = null
       _wsReadyReject = null
@@ -101,12 +113,14 @@ function _ensureOpen(): Promise<void> {
     ws.onmessage = _handleMessage
 
     ws.onerror = () => {
+      clearTimeout(connectTimer)
       _onStatusChange?.(false)
       const err = new Error('WebSocket error')
       if (!resolved) { reject(err); resolved = true }
     }
 
     ws.onclose = () => {
+      clearTimeout(connectTimer)
       if (_ws === ws) { _ws = null; _wsReadyPromise = null }
       _onStatusChange?.(false)
       const err = new Error('WebSocket closed')
@@ -168,22 +182,12 @@ export async function ping(): Promise<boolean> {
 // ─── Stack reads/writes ───────────────────────────────────────────────────────
 
 export async function getStacks(): Promise<Record<string, Stack>> {
-  // Use filesystem query to find ALL stack JSON files (including newly created ones
-  // in the ui/ subdirectory that aren't in .proc.stacks startup snapshot).
-  // Split by "/" to extract filename, works for any path format (hsym or relative sym).
   let names: string[]
-  const fsQuery = '{-5_last "/" vs string x} each .qi.paths[.conf.STACKS;"*.json"]'
   try {
-    names = await query<string[]>(fsQuery, 10000)
+    names = await query<string[]>('string key 1_.proc.stacks', 10000)
   } catch {
-    // Retry once after a short delay before falling back to startup snapshot
     await new Promise(r => setTimeout(r, 1500))
-    try {
-      names = await query<string[]>(fsQuery, 10000)
-    } catch {
-      // Final fallback: startup snapshot only (won't include newly created stacks)
-      names = await query<string[]>('string 1_key .proc.stacks')
-    }
+    names = await query<string[]>('string key 1_.proc.stacks', 10000)
   }
   if (!Array.isArray(names) || names.length === 0) throw new Error('No stacks found')
   const entries = (await Promise.all(
@@ -220,8 +224,6 @@ export async function saveStack(name: string, stack: Stack): Promise<void> {
     const writtenKeys = Object.keys(written.processes).sort().join(',')
     if (sentKeys !== writtenKeys) throw new Error(`writestack: content not updated (${hubErr})`)
   }
-  // Load the stack into hub's procs table so processes become startable
-  await query(`load1stack[\`${name}]`).catch(() => { /* ignore if not supported or already loaded */ })
   await triggerUpdate()
 }
 

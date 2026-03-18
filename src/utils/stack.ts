@@ -79,10 +79,7 @@ function layerNodes(processes: Record<string, Process>): Record<string, { x: num
 
 // ─── Graph derivation ─────────────────────────────────────────────────────────
 
-export function deriveGraphNodes(
-  stack: Stack,
-  statuses: Record<string, ProcessStatus>,
-): GraphNode[] {
+export function deriveGraphNodes(stack: Stack): GraphNode[] {
   const positions = layerNodes(stack.processes)
   return Object.entries(stack.processes).map(([name, proc]) => ({
     id: name,
@@ -91,7 +88,7 @@ export function deriveGraphNodes(
     data: {
       name,
       process: proc,
-      status: statuses[name] ?? 'stopped',
+      status: 'stopped' as ProcessStatus,
       port: resolvePort(stack, proc),
       host: 'localhost',
     },
