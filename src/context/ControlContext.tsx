@@ -46,7 +46,7 @@ import {
     // Stack actions
     addStack: (name: string, stack: Stack) => Promise<void>
     renameStack: (oldName: string, newName: string) => Promise<void>
-    cloneStack: (name: string, newName: string, description: string, basePort: number) => Promise<void>
+    cloneStack: (name: string, newName: string, port?: number) => Promise<void>
     deleteStack: (name: string) => Promise<void>
     saveStack: (name: string, stack: Stack) => Promise<void>      // persists to API
     updateStackLocal: (name: string, stack: Stack) => void        // live update, no API call
@@ -446,27 +446,20 @@ import {
       if (activeStack === oldName) setActiveStack(newName)
     }, [stacks, activeStack, addLog, connType])
 
-    const cloneStack = useCallback(async (name: string, newName: string, description: string, basePort: number) => {
+    const cloneStack = useCallback(async (name: string, newName: string, port = 0) => {
       const api = connType === 'q' ? qApi : realApi
       let cloned
       try {
-        cloned = await api.cloneStack(name, newName)
+        cloned = await api.cloneStack(name, newName, port)
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         addLog('system', 'error', `Clone failed: ${msg}`, name)
         return
       }
-      // Apply new base_port and description, then persist
-      const updated = { ...cloned, base_port: basePort, description }
-      setStacks(s => ({ ...s, [newName]: updated }))
+      setStacks(s => ({ ...s, [newName]: cloned }))
       setStackOrder(o => [...o, newName])
       setActiveStack(newName)
-      try {
-        await api.saveStack(newName, updated)
-        addLog('system', 'info', `Stack "${name}" cloned as "${newName}"`, newName)
-      } catch (e) {
-        addLog('system', 'error', `Clone saved but base_port update failed: ${e instanceof Error ? e.message : String(e)}`, newName)
-      }
+      addLog('system', 'info', `Stack "${name}" cloned as "${newName}"`, newName)
     }, [addLog, connType])
 
     const deleteStack = useCallback(async (name: string) => {

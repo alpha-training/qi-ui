@@ -180,21 +180,25 @@ export function CloneStackModal({
   existingNames: string[]
   existingPorts: number[]
   suggestedPort: number
-  onClone: (newName: string, description: string, basePort: number) => void
+  onClone: (newName: string, port: number) => void
   onClose: () => void
 }) {
-  const [name, setName]   = useState(`${sourceName}_copy`)
-  const [desc, setDesc]   = useState('')
-  const [port, setPort]   = useState(String(suggestedPort))
-  const [error, setError] = useState<string | null>(null)
+  const [name, setName]       = useState(`${sourceName}_copy`)
+  const [portAuto, setPortAuto] = useState(true)
+  const [port, setPort]       = useState(String(suggestedPort))
+  const [error, setError]     = useState<string | null>(null)
 
   const handleConfirm = () => {
     if (!name.trim()) { setError('Name is required'); return }
     if (existingNames.some(n => n.toLowerCase() === name.trim().toLowerCase())) { setError(`"${name}" already exists`); return }
-    const p = parseInt(port)
-    if (isNaN(p) || p < 1024 || p > 65535) { setError('Port must be between 1024 and 65535'); return }
-    if (existingPorts.includes(p)) { setError(`Base port ${p} is already used by another stack`); return }
-    onClone(name.trim(), desc.trim(), p)
+    if (!portAuto) {
+      const p = parseInt(port)
+      if (isNaN(p) || p < 1024 || p > 65535) { setError('Port must be between 1024 and 65535'); return }
+      if (existingPorts.includes(p)) { setError(`Base port ${p} is already used by another stack`); return }
+      onClone(name.trim(), p)
+    } else {
+      onClone(name.trim(), 0)
+    }
     onClose()
   }
 
@@ -210,12 +214,21 @@ export function CloneStackModal({
             onEnter={handleConfirm} placeholder="New name" error={error} autoFocus />
         </div>
         <div>
-          <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">Description</label>
-          <ModalInput value={desc} onChange={setDesc} placeholder="Optional description" />
-        </div>
-        <div>
-          <label className="text-xs text-[var(--text-muted)] font-medium mb-1.5 block">Base port *</label>
-          <ModalInput value={port} onChange={setPort} placeholder="9000" />
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs text-[var(--text-muted)] font-medium">Base port</label>
+            <button
+              onClick={() => setPortAuto(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] transition-colors">
+              <div className={`w-7 h-4 rounded-full relative transition-colors shrink-0 ${portAuto ? 'bg-[var(--primary)]' : 'bg-[var(--bg-toggle-off)]'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all ${portAuto ? 'right-0.5' : 'left-0.5'}`} />
+              </div>
+              Auto
+            </button>
+          </div>
+          {portAuto
+            ? <p className="text-xs text-[var(--text-faint)] py-1">Hub will assign max base port + 1000</p>
+            : <ModalInput value={port} onChange={v => { setPort(v); setError(null) }} placeholder={String(suggestedPort)} error={error} />
+          }
         </div>
         <ModalFooter onCancel={onClose} onConfirm={handleConfirm} confirmLabel="Clone stack" />
       </div>
