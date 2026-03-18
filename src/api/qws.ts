@@ -239,13 +239,17 @@ export async function renameStack(name: string, newName: string): Promise<void> 
   await triggerUpdate()
 }
 
-export async function cloneStack(name: string, newName: string): Promise<Stack> {
+export async function cloneStack(name: string, newName: string, port = 0): Promise<Stack> {
   try {
-    await query(`clonestack[\`${name};\`${newName}]`)
-  } catch {
-    // Fallback: read source and write as new name
-    const src = await getStack(name)
-    await saveStack(newName, src)
+    await query(`clonestack[\`${name};\`${newName};${port}]`)
+  } catch (e) {
+    // Older hub without port arg — fall back to 2-arg form
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('rank')) {
+      await query(`clonestack[\`${name};\`${newName}]`)
+    } else {
+      throw e
+    }
   }
   await triggerUpdate()
   return getStack(newName)
