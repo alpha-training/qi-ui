@@ -53,6 +53,7 @@ import {
     reorderStacks: (newOrder: string[]) => void
 
     clearLogs: () => void
+    refreshStackLogs: (stack: string, proc?: string) => void
 
     // Process actions
     startProcess: (stackName: string, proc: string) => Promise<void>
@@ -66,6 +67,9 @@ import {
   export function ControlProvider({ children }: { children: ReactNode }) {
     const { apiBase, activeConn } = useConnectionContext()
     const connType = activeConn?.type ?? 'q'
+
+    // Ignore log entries older than session start (avoids replaying old errors via refreshlogs)
+    const sessionStartRef = useRef(new Date())
 
     const [reconnectKey, setReconnectKey] = useState(0)
     const reconnect = useCallback(() => setReconnectKey(k => k + 1), [])
@@ -225,30 +229,26 @@ import {
         (isConnected) => setConnected(isConnected),
       )
 
-      // Poll MonText for recent logs (hub clears it every 1s after push, so poll fast)
-      let pollTimer: ReturnType<typeof setInterval> | null = null
+      // Fetch recent logs once on connect — stream handles live updates from here
       if (connType === 'q') {
-        let lastTs = ''
-        const fetchLogs = async () => {
+        const sessionStart = sessionStartRef.current
+        setTimeout(async () => {
           try {
-            const rows = await qApi.getRecentLogs(50)
+            const rows = await qApi.refreshLogs()
             if (!Array.isArray(rows) || rows.length === 0) return
             for (const r of rows) {
-              const ts = String(r.time ?? '')
-              if (ts && ts <= lastTs) continue
-              if (ts) lastTs = ts
+              const ts = String((r as { time?: string }).time ?? '')
+              if (ts) {
+                const iso = ts.replace('D', 'T').slice(0, 23)
+                if (new Date(iso) < sessionStart) continue
+              }
               parseMonTextRow(r)
             }
-          } catch { /* ignore */ }
-        }
-        setTimeout(fetchLogs, 1500)
-        pollTimer = setInterval(fetchLogs, 1000)
+          } catch { /* ignore — stream will deliver live logs */ }
+        }, 1500)
       }
 
-      return () => {
-        if (pollTimer) clearInterval(pollTimer)
-        cleanup()
-      }
+      return () => { cleanup() }
     }, [apiBase, connType, addLog, parseMonTextRow])
 
     const setStatus = (stackName: string, proc: string, status: ProcessStatus) =>
@@ -495,6 +495,25 @@ import {
 
     const clearLogs = useCallback(() => setLogs([]), [])
 
+    const refreshStackLogs = useCallback((stack: string, proc?: string) => {
+      if (connType !== 'q' || !stack) return
+      const procArg = proc ? `${proc}.${stack}` : ''
+      const sessionStart = sessionStartRef.current
+      qApi.refreshLogs(stack, procArg).then(rows => {
+        if (!Array.isArray(rows) || rows.length === 0) return
+        for (const r of rows) {
+          // Skip entries older than session start to avoid replaying stale errors
+          const ts = String((r as { time?: string }).time ?? '')
+          if (ts) {
+            const iso = ts.replace('D', 'T').slice(0, 23)
+            if (new Date(iso) < sessionStart) continue
+          }
+          parseMonTextRow(r)
+        }
+      }).catch(() => {})
+    }, [connType, parseMonTextRow])
+
+
     // Live update without API call — used by JSON editor while typing
     const updateStackLocal = useCallback((name: string, stack: Stack) => {
       setStacks(s => ({ ...s, [name]: stack }))
@@ -512,7 +531,7 @@ import {
         statuses, viewMode, setViewMode, logs,
         jsonStatus, setJsonStatus,
         connected, stacksLoading, statusesLoading, reconnect,
-        clearLogs,
+        clearLogs, refreshStackLogs,
         addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal, reorderStacks,
         startProcess, stopProcess, startAll, stopAll,
       }}>

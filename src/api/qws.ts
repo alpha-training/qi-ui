@@ -266,10 +266,15 @@ export async function getStatuses(): Promise<Array<{ name: string; stackname: st
   return query('select name,stackname,status from procs')
 }
 
-// ─── Recent logs from MonText ─────────────────────────────────────────────────
+// ─── Logs via refreshlogs ─────────────────────────────────────────────────────
 
-export async function getRecentLogs(n = 50): Promise<Array<{ time: string; sym: string; stackname: string; lines: string | string[] }>> {
-  return query(`select[-${n}] time,sym,stackname,lines from MonText`)
+export async function refreshLogs(
+  stack = '',
+  proc = '',
+): Promise<Array<{ time: string; sym: string; stackname: string; lines: string | string[] }>> {
+  const stackArg = stack ? `\`${stack}` : '`'
+  const procArg  = proc  ? `\`${proc}`  : '()'
+  return query(`refreshlogs[${stackArg};${procArg}]`, 3000)
 }
 
 // ─── Process control ──────────────────────────────────────────────────────────
@@ -285,11 +290,11 @@ export async function stopProcess(stack: string, proc: string): Promise<void> {
 
 export async function startAll(stack: string): Promise<void> {
   // up `stackname starts all processes in that stack
-  await query(`up \`${stack}`)
+  await query(`up \`${stack}`, 15000)
 }
 
 export async function stopAll(stack: string): Promise<void> {
-  await query(`down \`${stack}`)
+  await query(`down \`${stack}`, 15000)
 }
 
 // ─── Stream via WebSocket ─────────────────────────────────────────────────────
