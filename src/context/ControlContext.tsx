@@ -127,7 +127,7 @@ import {
 
     // ── Load stacks: try real API first, fall back to mock ───────────────────
     useEffect(() => {
-      const api = connType === 'q' ? qApi : realApi
+const api = connType === 'q' ? qApi : realApi
       api.getStacks()
         .then(async s => {
           hasRealStacksRef.current = true
@@ -168,8 +168,9 @@ import {
 
     const addLog = useCallback((process: string, level: LogEntry['level'], msg: string, stackname = '') => {
       const ts = new Date().toTimeString().slice(0, 8)
+      const id = _logId++
       setLogs(l => {
-        const next = [...l, { id: _logId++, process, stackname, level, msg, ts }]
+        const next = [...l, { id, process, stackname, level, msg, ts }]
         return next.length > 500 ? next.slice(next.length - 500) : next
       })
     }, [])
@@ -300,7 +301,7 @@ import {
                 intentionallyStoppedRef.current.delete(key)
               }
             } catch { /* ignore */ }
-          }, 7000)
+          }, 20000)
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -359,7 +360,7 @@ import {
                 addLog(proc, 'error', `${proc} failed to start — check ~/projects/qi/data/${stackName}/logs/${proc}.log`, stackName)
               }
             } catch { /* ignore */ }
-          }, 10000)
+          }, 20000)
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -466,7 +467,12 @@ import {
       const api = connType === 'q' ? qApi : realApi
       try {
         await api.deleteStack(name)
-      } catch { /* backend may not support deletestack yet */ }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        const clean = msg.replace(/^kdb error:\s*/i, '')
+        addLog('system', 'error', `Delete failed: ${clean}`, name)
+        return  // backend rejected — keep stack in UI
+      }
       try { await mock.deleteStack(name) } catch { /* ignore */ }
       addLog('system', 'info', `Stack "${name}" deleted`, name)
       setStacks(s => {
