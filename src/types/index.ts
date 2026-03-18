@@ -55,6 +55,7 @@ export interface Process {
   export interface LogEntry {
     id: number
     process: string
+    stackname: string   // '' = show in all stacks (system-wide messages)
     level: LogLevel
     msg: string
     ts: string
