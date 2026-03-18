@@ -27,9 +27,10 @@ export default function LogsPanel(props: { height: number }) {
   const activeTab = manualTab
 
   const filtered = logs.filter(l => {
+    const stackMatch = l.stackname === '' || l.stackname === activeStack
     const tabMatch = activeTab === 'All' || l.process === activeTab
     const levelMatch = filters[l.level]
-    return tabMatch && levelMatch
+    return stackMatch && tabMatch && levelMatch
   })
 
   useEffect(() => {

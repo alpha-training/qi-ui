@@ -264,8 +264,8 @@ export async function getStatuses(): Promise<Array<{ name: string; stackname: st
 
 // ─── Recent logs from MonText ─────────────────────────────────────────────────
 
-export async function getRecentLogs(n = 50): Promise<Array<{ time: string; sym: string; lines: string | string[] }>> {
-  return query(`select[-${n}] time,sym,lines from MonText`)
+export async function getRecentLogs(n = 50): Promise<Array<{ time: string; sym: string; stackname: string; lines: string | string[] }>> {
+  return query(`select[-${n}] time,sym,stackname,lines from MonText`)
 }
 
 // ─── Process control ──────────────────────────────────────────────────────────
