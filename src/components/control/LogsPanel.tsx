@@ -4,7 +4,7 @@ import { useControl } from '../../context/ControlContext'
 import type { LogLevel } from '../../types'
 
 export default function LogsPanel(props: { height: number }) {
-  const { logs, clearLogs, stacks, activeStack, selectedProc } = useControl()
+  const { logs, clearLogs, stacks, activeStack, selectedProc, refreshStackLogs } = useControl()
   const [manualTab, setManualTab] = useState<string>('All')
   const [filters, setFilters] = useState<Record<LogLevel, boolean>>({ info: true, error: true, fatal: true })
   const [autoScroll, setAutoScroll] = useState(true)
@@ -45,7 +45,7 @@ export default function LogsPanel(props: { height: number }) {
         <span className="text-[var(--text-primary)] font-bold text-lg shrink-0">Logs:</span>
         <div className="flex items-center gap-3 flex-wrap">
           {tabs.map(tab => (
-            <button key={tab} onClick={() => setManualTab(tab)}
+            <button key={tab} onClick={() => { setManualTab(tab); if (tab !== 'All') refreshStackLogs(activeStack, tab) }}
               className={`text-xs font-medium transition-colors
                 ${activeTab === tab
                   ? 'text-[var(--primary)] underline underline-offset-4 decoration-[var(--primary)]'
