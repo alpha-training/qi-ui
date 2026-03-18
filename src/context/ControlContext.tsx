@@ -41,6 +41,7 @@ import {
     connected: boolean   // true = qi-cli API is reachable
     stacksLoading: boolean    // true while waiting for real stacks to arrive
     statusesLoading: boolean  // true until first stream push with process statuses
+    reconnect: () => void
 
     // Stack actions
     addStack: (name: string, stack: Stack) => Promise<void>
@@ -65,6 +66,9 @@ import {
   export function ControlProvider({ children }: { children: ReactNode }) {
     const { apiBase, activeConn } = useConnectionContext()
     const connType = activeConn?.type ?? 'q'
+
+    const [reconnectKey, setReconnectKey] = useState(0)
+    const reconnect = useCallback(() => setReconnectKey(k => k + 1), [])
 
     const [stacks, setStacks] = useState<Record<string, Stack>>({})
     const [stackOrder, setStackOrder] = useState<string[]>([])
@@ -93,7 +97,7 @@ import {
       if (connType === 'q' && activeConn) {
         qApi.setQBase(activeConn.host, activeConn.port)
       }
-    }, [apiBase, connType]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [apiBase, connType, reconnectKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Check API connectivity ────────────────────────────────────────────────
     useEffect(() => {
@@ -148,19 +152,13 @@ import {
           }
         })
         .catch(() => {
-          // Wait 3s for stream to deliver real stacks before falling back to mock
-          setTimeout(() => {
-            if (hasRealStacksRef.current) return
-            mock.getStacks().then(s => {
-              setStacks(s)
-              const order = mergeOrder(loadSavedOrder(), Object.keys(s))
-              setStackOrder(order)
-              setActiveStack(order[0] ?? '')
-              setStacksLoading(false)
-            })
-          }, 3000)
+          // Backend unreachable — show offline state immediately
+          if (!hasRealStacksRef.current) {
+            setStacksLoading(false)
+            setStatusesLoading(false)
+          }
         })
-    }, [apiBase, connType])
+    }, [apiBase, connType, reconnectKey])
 
     const addLog = useCallback((process: string, level: LogEntry['level'], msg: string) => {
       const ts = new Date().toTimeString().slice(0, 8)
@@ -487,7 +485,7 @@ import {
         selectedProc, setSelectedProc,
         statuses, viewMode, setViewMode, logs,
         jsonStatus, setJsonStatus,
-        connected, stacksLoading, statusesLoading,
+        connected, stacksLoading, statusesLoading, reconnect,
         clearLogs,
         addStack, renameStack, cloneStack, deleteStack, saveStack, updateStackLocal, reorderStacks,
         startProcess, stopProcess, startAll, stopAll,

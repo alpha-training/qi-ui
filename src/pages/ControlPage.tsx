@@ -23,7 +23,7 @@ export default function ControlPage() {
     viewMode, setViewMode,
     addStack, renameStack, cloneStack, deleteStack, saveStack, reorderStacks,
     startAll, stopAll, startProcess, stopProcess,
-    statuses, jsonStatus, stacksLoading, statusesLoading,
+    statuses, jsonStatus, stacksLoading, statusesLoading, connected, reconnect,
   } = useControl()
 
   const [logsHeight,    setLogsHeight]    = useState(() => parseInt(localStorage.getItem('qi_logs_height')    ?? '224'))
@@ -142,7 +142,26 @@ export default function ControlPage() {
       <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)]">
         <div className="flex items-center gap-3 text-[var(--text-dimmed)] text-sm">
           <div className="w-4 h-4 border-2 border-[var(--border)] border-t-[var(--primary)] rounded-full animate-spin" />
-          {stacksLoading ? 'Loading stacks…' : 'Loading statuses…'}
+          Connecting…
+        </div>
+      </div>
+    )
+  }
+
+  if (!connected) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-[var(--bg-base)]">
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_#f87171]" />
+          <div>
+            <p className="text-[var(--text-primary)] text-base font-semibold mb-1">Not connected</p>
+            <p className="text-[var(--text-dimmed)] text-sm max-w-[280px]">Start the hub to manage your stacks and processes.</p>
+          </div>
+          <button
+            onClick={reconnect}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity">
+            Reconnect
+          </button>
         </div>
       </div>
     )
@@ -259,29 +278,31 @@ export default function ControlPage() {
             )}
           </div>
 
-          {/* Start / Stop all */}
-          <div className="shrink-0 flex items-center gap-2 px-4 border-l border-[var(--border)]">
-            <button
-              onClick={() => startAll(activeStack)}
-              disabled={allRunning}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
-                ${allRunning
-                  ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
-                  : 'border-green-500/70 text-green-400 hover:bg-green-500/10'}`}>
-              <Play size={11} className={allRunning ? 'fill-[var(--text-faint)]' : 'fill-green-400'} />
-              Start all
-            </button>
-            <button
-              onClick={() => stopAll(activeStack)}
-              disabled={!anyRunning}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
-                ${!anyRunning
-                  ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
-                  : 'border-orange-500/70 text-orange-400 hover:bg-orange-500/10'}`}>
-              <Square size={11} className={!anyRunning ? 'fill-[var(--text-faint)]' : 'fill-orange-400'} />
-              Stop all
-            </button>
-          </div>
+          {/* Start / Stop all — hidden when offline */}
+          {connected && (
+            <div className="shrink-0 flex items-center gap-2 px-4 border-l border-[var(--border)]">
+              <button
+                onClick={() => startAll(activeStack)}
+                disabled={allRunning}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
+                  ${allRunning
+                    ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
+                    : 'border-green-500/70 text-green-400 hover:bg-green-500/10'}`}>
+                <Play size={11} className={allRunning ? 'fill-[var(--text-faint)]' : 'fill-green-400'} />
+                Start all
+              </button>
+              <button
+                onClick={() => stopAll(activeStack)}
+                disabled={!anyRunning}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all
+                  ${!anyRunning
+                    ? 'border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
+                    : 'border-orange-500/70 text-orange-400 hover:bg-orange-500/10'}`}>
+                <Square size={11} className={!anyRunning ? 'fill-[var(--text-faint)]' : 'fill-orange-400'} />
+                Stop all
+              </button>
+            </div>
+          )}
 
           {/* Right section: JSON Config header */}
           {(() => {
@@ -308,13 +329,21 @@ export default function ControlPage() {
             <div className="flex flex-1 min-h-0">
               {stackNames.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center">
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <p className="text-[var(--text-dimmed)] text-sm">No stacks yet.</p>
-                    <button onClick={() => setShowAdd(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-500/50 text-blue-400 text-sm hover:bg-blue-500/10 transition-colors">
-                      <Plus size={13} /> Create a stack
-                    </button>
-                  </div>
+                  {!connected ? (
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#f87171]" />
+                      <p className="text-[var(--text-primary)] text-sm font-semibold">Not connected</p>
+                      <p className="text-[var(--text-dimmed)] text-xs max-w-[260px]">Start the hub to manage your stacks and processes.</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <p className="text-[var(--text-dimmed)] text-sm">No stacks yet.</p>
+                      <button onClick={() => setShowAdd(true)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-500/50 text-blue-400 text-sm hover:bg-blue-500/10 transition-colors">
+                        <Plus size={13} /> Create a stack
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>

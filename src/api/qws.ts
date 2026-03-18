@@ -89,7 +89,19 @@ function _ensureOpen(): Promise<void> {
     const ws = new WebSocket(`ws://${_host}:${_port}`)
     ws.binaryType = 'arraybuffer'
 
+    const connectTimer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        _wsReadyPromise = null
+        _wsReadyReject = null
+        ws.close()
+        _onStatusChange?.(false)
+        reject(new Error('WebSocket connect timeout'))
+      }
+    }, 5000)
+
     ws.onopen = () => {
+      clearTimeout(connectTimer)
       _ws = ws
       _wsReadyPromise = null
       _wsReadyReject = null
@@ -101,12 +113,14 @@ function _ensureOpen(): Promise<void> {
     ws.onmessage = _handleMessage
 
     ws.onerror = () => {
+      clearTimeout(connectTimer)
       _onStatusChange?.(false)
       const err = new Error('WebSocket error')
       if (!resolved) { reject(err); resolved = true }
     }
 
     ws.onclose = () => {
+      clearTimeout(connectTimer)
       if (_ws === ws) { _ws = null; _wsReadyPromise = null }
       _onStatusChange?.(false)
       const err = new Error('WebSocket closed')
