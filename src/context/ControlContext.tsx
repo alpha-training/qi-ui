@@ -353,17 +353,31 @@ import {
       const procs = Object.keys(stacks[stackName]?.processes ?? {})
       try {
         if (connType === 'q') {
-          await Promise.all(procs.map(p => qApi.stopProcess(stackName, p)))
+          const results = await Promise.allSettled(procs.map(p => qApi.stopProcess(stackName, p)))
+          const stopped = procs.filter((_, i) => results[i].status === 'fulfilled')
+          const failed  = procs.filter((_, i) => results[i].status === 'rejected')
+          if (stopped.length > 0) {
+            setStatuses(s => ({
+              ...s,
+              [stackName]: { ...s[stackName], ...Object.fromEntries(stopped.map(p => [p, 'stopped' as const])) },
+            }))
+          }
+          if (failed.length > 0) {
+            addLog('system', 'error', `Stop all: failed to stop ${failed.join(', ')}`)
+          } else {
+            addLog('system', 'info', `All processes stopped in ${stackName}`)
+          }
         } else {
           await realApi.stopAll(stackName)
+          addLog('system', 'info', `All processes stopped in ${stackName}`)
+          setStatuses(s => ({
+            ...s,
+            [stackName]: { ...s[stackName], ...Object.fromEntries(procs.map(p => [p, 'stopped' as const])) },
+          }))
         }
-        addLog('system', 'info', `All processes stopped in ${stackName}`)
-        setStatuses(s => ({
-          ...s,
-          [stackName]: { ...s[stackName], ...Object.fromEntries(procs.map(p => [p, 'stopped' as const])) },
-        }))
-      } catch {
-        addLog('system', 'error', `Stop all failed for ${stackName}`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog('system', 'error', `Stop all failed for ${stackName}: ${msg}`)
       }
     }, [stacks, addLog, connType])
 
