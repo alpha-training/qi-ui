@@ -358,7 +358,7 @@ export default function ControlPage() {
         <AddStackModal
           existingNames={stackNames}
           existingPorts={Object.values(stacks).map(s => s.base_port)}
-          suggestedPort={Math.max(1024, ...Object.values(stacks).map(s => s.base_port)) + 1000}
+          suggestedPort={Object.keys(stacks).length === 0 ? 10000 : Math.max(10000, ...Object.values(stacks).map(s => s.base_port)) + 1000}
           onAdd={handleAddStack}
           onClose={() => setShowAdd(false)}
         />
@@ -371,7 +371,7 @@ export default function ControlPage() {
       {showClone && (
         <CloneStackModal sourceName={activeStack} existingNames={stackNames}
           existingPorts={Object.values(stacks).map(s => s.base_port)}
-          suggestedPort={Math.max(1024, ...Object.values(stacks).map(s => s.base_port)) + 1000}
+          suggestedPort={Object.keys(stacks).length === 0 ? 10000 : Math.max(10000, ...Object.values(stacks).map(s => s.base_port)) + 1000}
           onClone={(name, desc, port) => cloneStack(activeStack, name, desc, port)} onClose={() => setShowClone(false)} />
       )}
       {showDelete && (

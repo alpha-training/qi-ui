@@ -41,6 +41,14 @@ export default function StackCanvas() {
     [stack],
   )
 
+  // Memoize the final nodes array passed to ReactFlow.
+  // Without this, the inline .map() would create a new reference on every render
+  // (including status-stream renders), triggering React Flow v11's in-place update bug.
+  const rfNodes = useMemo(
+    () => nodes.map(n => ({ ...n, selected: n.id === selectedProc })),
+    [nodes, selectedProc],
+  )
+
   const edges: Edge[] = useMemo(() => {
     if (!stack) return []
     return deriveGraphEdges(stack).map(e => ({
@@ -84,7 +92,7 @@ export default function StackCanvas() {
     <div ref={setNodeRef} className={`flex-1 relative transition-colors ${isOver ? 'bg-[var(--bg-canvas-over)]' : 'bg-[var(--bg-canvas)]'}`}>
       <ReactFlow
         key={graphKey}
-        nodes={nodes.map(n => ({ ...n, selected: n.id === selectedProc }))}
+        nodes={rfNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         nodesDraggable={false}

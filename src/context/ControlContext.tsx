@@ -291,6 +291,7 @@ import {
               const row = rows.find(r => r.stackname === stackName && r.name.split('.')[0] === proc)
               if (row && row.status !== 'up' && row.status !== 'busy') {
                 addLog(proc, 'error', `${proc} failed to start — check ~/projects/qi/data/${stackName}/logs/${proc}.log`)
+                setStatus(stackName, proc, 'stopped')
               }
             } catch { /* ignore */ }
           }, 7000)
