@@ -231,9 +231,10 @@ const api = connType === 'q' ? qApi : realApi
       )
 
       // Fetch recent logs once on connect — stream handles live updates from here
+      let logTimer: ReturnType<typeof setTimeout> | null = null
       if (connType === 'q') {
         const sessionStart = sessionStartRef.current
-        setTimeout(async () => {
+        logTimer = setTimeout(async () => {
           try {
             const rows = await qApi.refreshLogs()
             if (!Array.isArray(rows) || rows.length === 0) return
@@ -249,7 +250,7 @@ const api = connType === 'q' ? qApi : realApi
         }, 1500)
       }
 
-      return () => { cleanup() }
+      return () => { cleanup(); if (logTimer) clearTimeout(logTimer) }
     }, [apiBase, connType, addLog, parseMonTextRow])
 
     const setStatus = (stackName: string, proc: string, status: ProcessStatus) =>
