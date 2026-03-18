@@ -142,9 +142,7 @@ export function connectStream(
     try {
       const msg: StreamMessage = JSON.parse(e.data)
       onMessage(msg)
-    } catch {
-      console.warn('[stream] could not parse message:', e.data)
-    }
+    } catch { /* ignore unparseable stream messages */ }
   }
 
   es.onerror = () => {
