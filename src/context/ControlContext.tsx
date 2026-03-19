@@ -107,6 +107,7 @@ import {
 
     // ── Check API connectivity ────────────────────────────────────────────────
     useEffect(() => {
+      realApi.setApiBase(apiBase)
       const api = connType === 'q' ? qApi : realApi
       api.ping().then(ok => setConnected(ok))
     }, [apiBase, connType])
@@ -127,7 +128,8 @@ import {
 
     // ── Load stacks: try real API first, fall back to mock ───────────────────
     useEffect(() => {
-const api = connType === 'q' ? qApi : realApi
+      realApi.setApiBase(apiBase)
+      const api = connType === 'q' ? qApi : realApi
       api.getStacks()
         .then(async s => {
           hasRealStacksRef.current = true
@@ -201,6 +203,7 @@ const api = connType === 'q' ? qApi : realApi
 
     // ── Stream — live process status updates from kdb+ ────────────────────────
     useEffect(() => {
+      realApi.setApiBase(apiBase)
       const api = connType === 'q' ? qApi : realApi
       const cleanup = api.connectStream(
         (msg: StreamMessage) => {
