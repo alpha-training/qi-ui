@@ -214,6 +214,7 @@ export default function ControlPage() {
                     <button
                       draggable
                       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragTab(name) }}
+                      onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverTab(name) }}
                       onDragLeave={() => setDragOverTab(null)}
                       onDrop={e => {
@@ -252,7 +253,8 @@ export default function ControlPage() {
                   {dragTab && (
                     <div
                       className={`relative w-3 self-stretch ${dragOverTab === '__end__' ? 'before:absolute before:left-0 before:top-0.5 before:bottom-0.5 before:w-0.5 before:rounded-full before:bg-blue-400' : ''}`}
-                      onDragOver={e => { e.preventDefault(); setDragOverTab('__end__') }}
+                      onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverTab('__end__') }}
                       onDragLeave={() => setDragOverTab(null)}
                       onDrop={e => {
                         e.preventDefault()
