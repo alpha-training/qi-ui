@@ -1,23 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  DndContext, DragOverlay, useSensor, useSensors, PointerSensor as PointerSensorBase,
+  DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
   type DragEndEvent,
 } from '@dnd-kit/core'
-
-// Custom sensor that ignores drag-start on elements marked data-no-dnd
-// (used to prevent DndContext from blocking native HTML5 drag on stack tabs)
-class PointerSensor extends PointerSensorBase {
-  static activators = [
-    {
-      eventName: 'onPointerDown' as const,
-      handler: ({ nativeEvent }: React.PointerEvent) => {
-        if ((nativeEvent.target as HTMLElement)?.closest('[data-no-dnd]')) return false
-        return true
-      },
-    },
-  ]
-}
+import {
+  SortableContext, useSortable, horizontalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Share2, List, Play, Square, Plus, MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import { useControl } from '../context/ControlContext'
 import { autoName, assignPortOffset } from '../utils/stack'
@@ -29,6 +19,35 @@ import ProcessTable   from '../components/control/ProcessTable'
 import JsonPanel      from '../components/control/JsonPanel'
 import LogsPanel      from '../components/control/LogsPanel'
 import { AddStackModal, RenameStackModal, CloneStackModal, DeleteStackModal } from '../components/control/StackModals'
+
+function SortableTab({ name, isActive, onActivate, onMenu }: {
+  name: string; isActive: boolean
+  onActivate: () => void; onMenu: (e: React.MouseEvent) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: name, data: { type: 'tab' },
+  })
+  return (
+    <button
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      {...attributes} {...listeners}
+      onClick={onActivate}
+      className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-grab active:cursor-grabbing
+        ${isActive
+          ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)] border border-[var(--border-tab-active)]'
+          : 'text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
+      {name}
+      {isActive && (
+        <span
+          onClick={e => { e.stopPropagation(); onMenu(e) }}
+          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] ml-0.5 cursor-pointer">
+          <MoreHorizontal size={12} />
+        </span>
+      )}
+    </button>
+  )
+}
 
 export default function ControlPage() {
   const {
@@ -93,12 +112,9 @@ export default function ControlPage() {
   const [showClone, setShowClone]   = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [activeDrag, setActiveDrag] = useState<string | null>(null)
-  const [dragTab, setDragTab] = useState<string | null>(null)
-  const [dragOverTab, setDragOverTab] = useState<string | null>(null)
 
   const stacksRef = useRef(stacks)
   useEffect(() => { stacksRef.current = stacks }, [stacks])
-
   const stackNames    = stackOrder
   const stack         = stacks[activeStack]
   const procNames     = useMemo(() => Object.keys(stack?.processes ?? {}), [stack])
@@ -129,6 +145,14 @@ export default function ControlPage() {
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveDrag(null)
     const { active, over } = event
+    if ((active.data.current as { type?: string })?.type === 'tab') {
+      if (over && active.id !== over.id) {
+        const oldIndex = stackNames.indexOf(active.id as string)
+        const newIndex = stackNames.indexOf(over.id as string)
+        if (oldIndex !== -1 && newIndex !== -1) reorderStacks(arrayMove(stackNames, oldIndex, newIndex))
+      }
+      return
+    }
     if (over?.id !== 'canvas') return
     const currentStack = stacksRef.current[activeStack]
     if (!currentStack) return
@@ -141,7 +165,7 @@ export default function ControlPage() {
       processes: { ...currentStack.processes, [name]: { pkg, port_offset: portOffset, ...defaults } },
     }
     saveStack(activeStack, updated)
-  }, [activeStack, saveStack])
+  }, [activeStack, saveStack, reorderStacks, stackNames])
 
   const handleAddStack = (name: string, description: string, basePort: number) => {
     addStack(name, {
@@ -184,7 +208,10 @@ export default function ControlPage() {
   return (
     <DndContext
       sensors={sensors}
-      onDragStart={e => setActiveDrag((e.active.data.current as { pkg: string }).pkg)}
+      onDragStart={e => {
+        if ((e.active.data.current as { type?: string })?.type !== 'tab')
+          setActiveDrag((e.active.data.current as { pkg: string }).pkg)
+      }}
       onDragEnd={handleDragEnd}
     >
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -204,65 +231,23 @@ export default function ControlPage() {
 
             {/* Stack tabs — scrollable, + always pinned outside */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <div className="tab-scroll min-w-0 overflow-x-auto" data-no-dnd
-                onDragOver={dragTab ? (e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }) : undefined}
-                onDrop={dragTab ? (e => e.preventDefault()) : undefined}
-              >
+              <div className="tab-scroll min-w-0 overflow-x-auto">
                 <div className="flex items-center gap-1.5 ml-3 w-max">
-                  {stackNames.map(name => (
-                    <div key={name} className={`relative flex items-center ${dragOverTab === name && dragTab !== name ? 'before:absolute before:-left-1 before:top-0.5 before:bottom-0.5 before:w-0.5 before:rounded-full before:bg-blue-400' : ''}`}>
-                    <button
-                      draggable
-                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragTab(name) }}
-                      onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
-                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverTab(name) }}
-                      onDragLeave={() => setDragOverTab(null)}
-                      onDrop={e => {
-                        e.preventDefault()
-                        if (dragTab && dragTab !== name) {
-                          const next = stackNames.filter(n => n !== dragTab)
-                          next.splice(next.indexOf(name), 0, dragTab)
-                          reorderStacks(next)
-                        }
-                        setDragTab(null); setDragOverTab(null)
-                      }}
-                      onDragEnd={() => { setDragTab(null); setDragOverTab(null) }}
-                      onClick={() => { setActiveStack(name); setSelectedProc(null) }}
-                      className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-grab active:cursor-grabbing
-                        ${dragTab === name ? 'opacity-40' : ''}
-                        ${activeStack === name
-                          ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)] border border-[var(--border-tab-active)]'
-                          : 'text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-                      {name}
-                      {activeStack === name && (
-                        <span
-                          onClick={e => {
-                            e.stopPropagation()
-                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                            setMenuAnchor({ top: rect.bottom + 6, left: rect.left })
-                            setShowMenu(v => !v)
-                          }}
-                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] ml-0.5 cursor-pointer">
-                          <MoreHorizontal size={12} />
-                        </span>
-                      )}
-                    </button>
-                    </div>
-                  ))}
-                  {/* Trailing drop zone — allows dropping after the last tab */}
-                  {dragTab && (
-                    <div
-                      className={`relative w-3 self-stretch ${dragOverTab === '__end__' ? 'before:absolute before:left-0 before:top-0.5 before:bottom-0.5 before:w-0.5 before:rounded-full before:bg-blue-400' : ''}`}
-                      onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
-                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverTab('__end__') }}
-                      onDragLeave={() => setDragOverTab(null)}
-                      onDrop={e => {
-                        e.preventDefault()
-                        if (dragTab) reorderStacks([...stackNames.filter(n => n !== dragTab), dragTab])
-                        setDragTab(null); setDragOverTab(null)
-                      }}
-                    />
-                  )}
+                  <SortableContext items={stackNames} strategy={horizontalListSortingStrategy}>
+                    {stackNames.map(name => (
+                      <SortableTab
+                        key={name}
+                        name={name}
+                        isActive={activeStack === name}
+                        onActivate={() => { setActiveStack(name); setSelectedProc(null) }}
+                        onMenu={e => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          setMenuAnchor({ top: rect.bottom + 6, left: rect.left })
+                          setShowMenu(v => !v)
+                        }}
+                      />
+                    ))}
+                  </SortableContext>
                 </div>
               </div>
               <button onClick={() => setShowAdd(true)} title="Add stack"
