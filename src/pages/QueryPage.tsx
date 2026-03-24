@@ -128,7 +128,8 @@ function newTab(name?: string): QueryTab {
 
 export default function QueryPage() {
   const { stacks, stackOrder, activeStack, setActiveStack, statuses, connected } = useControl()
-  const { connType, activeConn } = useConnectionContext()
+  const { activeConn } = useConnectionContext()
+  const connType = activeConn?.type ?? 'q'
 
   const [tabs, setTabs] = useState<QueryTab[]>(() => {
     try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEMO_TABS } catch { return DEMO_TABS }
@@ -477,7 +478,7 @@ export default function QueryPage() {
             {/* Hub — always shown */}
             {(['hub', ...stackProcs]).map(proc => {
               const isHub = proc === 'hub'
-              const isUp = isHub ? connected : statuses[activeStack]?.[proc]?.status === 'running'
+              const isUp = isHub ? connected : statuses[activeStack]?.[proc] === 'running'
               const isSelected = selectedProc === proc
               return (
                 <button
