@@ -4,6 +4,7 @@ import { Play, Plus, X, ChevronDown, MoreHorizontal, Pencil, Trash2 } from 'luci
 import { useControl } from '../context/ControlContext'
 import { useConnectionContext } from '../context/ConnectionContext'
 import * as qApi from '../api/qws'
+import { DirectConnection } from '../api/direct'
 import LogsPanel from '../components/control/LogsPanel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ function newTab(name?: string): QueryTab {
 
 export default function QueryPage() {
   const { stacks, stackOrder, activeStack, setActiveStack, statuses, connected } = useControl()
-  const { connType } = useConnectionContext()
+  const { connType, activeConn } = useConnectionContext()
 
   const [tabs, setTabs] = useState<QueryTab[]>(() => {
     try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEMO_TABS } catch { return DEMO_TABS }
@@ -153,6 +154,9 @@ export default function QueryPage() {
   const [renameValue, setRenameValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const directRef = useRef<DirectConnection | null>(null)
+  const initializedProcs = useRef<Set<string>>(new Set())
+  const [procConnStatus, setProcConnStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
 
   const activeTab = tabs.find(t => t.id === activeTabId) ?? tabs[0]
 
@@ -225,6 +229,44 @@ export default function QueryPage() {
     setRenamingTabId(null)
   }, [renameValue, renamingTabId])
 
+  // Connect directly to a process and call .proc.ui.init[] via hub (once per proc)
+  const ensureDirectConnection = useCallback(async (proc: string): Promise<DirectConnection> => {
+    const stack = stacks[activeStack]
+    if (!stack) throw new Error('No active stack')
+    const procDef = stack.processes[proc]
+    if (!procDef) throw new Error(`Process ${proc} not found in stack`)
+
+    const host = activeConn?.host ?? 'localhost'
+    const port = stack.base_port + procDef.port_offset
+
+    // Init the process handler via hub (only once per proc)
+    if (!initializedProcs.current.has(`${activeStack}.${proc}`)) {
+      await qApi.runQuery(`.proc.ui.init[\`${proc}.${activeStack}]`, 5000).catch(() => {
+        // Try simpler form without stack qualifier
+        return qApi.runQuery(`.proc.ui.init[]`, 5000).catch(() => {})
+      })
+      initializedProcs.current.add(`${activeStack}.${proc}`)
+    }
+
+    // Reuse existing connection if still open
+    if (directRef.current?.connected) return directRef.current
+
+    directRef.current?.disconnect()
+    const conn = new DirectConnection()
+    setProcConnStatus('connecting')
+    await conn.connect(host, port)
+    directRef.current = conn
+    setProcConnStatus('connected')
+    return conn
+  }, [stacks, activeStack, activeConn])
+
+  // Disconnect direct connection when stack/proc changes
+  useEffect(() => {
+    directRef.current?.disconnect()
+    directRef.current = null
+    setProcConnStatus('idle')
+  }, [activeStack, selectedProc])
+
   const runQuery = useCallback(async (targetPage = page) => {
     if (!activeTab || running) return
     const code = activeTab.code.trim()
@@ -247,30 +289,38 @@ export default function QueryPage() {
           ? `select[${pageSize}]from (${cmd})`
           : `select[${offset} ${pageSize}]from (${cmd})`
       }
-      if (useQs) {
-        cmd = `.Q.s[${cmd}]`
-      }
 
-      const res = await qApi.runQuery(cmd)
+      const format = useQs ? 'text' : 'data'
 
-      if (useQs || typeof res === 'string') {
-        setRawOutput(String(res))
-        setOutputTab('terminal')
-        setResult(null)
+      if (!selectedProc || selectedProc === 'hub') {
+        // Hub: use existing JSON WebSocket protocol
+        const hubCmd = useQs ? `.Q.s[${cmd}]` : cmd
+        const res = await qApi.runQuery(hubCmd)
+        if (useQs || typeof res === 'string') {
+          setRawOutput(String(res)); setOutputTab('terminal'); setResult(null)
+        } else {
+          setResult(res); setRawOutput(JSON.stringify(res, null, 2)); setOutputTab('output')
+        }
       } else {
-        setResult(res)
-        setRawOutput(JSON.stringify(res, null, 2))
-        setOutputTab('output')
+        // Direct process connection using qdirect binary protocol
+        const conn = await ensureDirectConnection(selectedProc)
+        const res = await conn.query(cmd, format)
+        if (res.format === 'text' || typeof res.result === 'string') {
+          setRawOutput(String(res.result)); setOutputTab('terminal'); setResult(null)
+        } else {
+          setResult(res.result); setRawOutput(JSON.stringify(res.result, null, 2)); setOutputTab('output')
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
       setRawOutput(msg)
       setOutputTab('terminal')
+      setProcConnStatus('error')
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, page, pageSize, pagingEnabled, useQs])
+  }, [activeTab, running, connType, page, pageSize, pagingEnabled, useQs, selectedProc, ensureDirectConnection])
 
   const goToPage = useCallback((next: number) => {
     if (next < 1) return
@@ -367,6 +417,17 @@ export default function QueryPage() {
           {running ? 'Running…' : 'Run'}
         </button>
         <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵</span>
+        {selectedProc && selectedProc !== 'hub' && (
+          <span className={`text-xs shrink-0 ${
+            procConnStatus === 'connected' ? 'text-emerald-400' :
+            procConnStatus === 'connecting' ? 'text-yellow-400' :
+            procConnStatus === 'error' ? 'text-red-400' : 'text-[var(--text-faint)]'
+          }`}>
+            {procConnStatus === 'connected' ? '● direct' :
+             procConnStatus === 'connecting' ? '○ connecting…' :
+             procConnStatus === 'error' ? '● error' : '○ direct'}
+          </span>
+        )}
       </div>
 
       {/* ── Main area: editor + right panel ── */}
