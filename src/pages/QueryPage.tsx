@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { Play, Plus, X, ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Play, Plus, X, ChevronDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useControl } from '../context/ControlContext'
 import { useConnectionContext } from '../context/ConnectionContext'
 import * as qApi from '../api/qws'
@@ -115,6 +116,9 @@ const DEMO_TABS: QueryTab[] = [
   { id: '3', name: 'myfile.q',     code: '' },
 ]
 
+const TABS_KEY       = 'qi_query_tabs'
+const ACTIVE_TAB_KEY = 'qi_query_active_tab'
+
 let _tabId = 3
 function newTab(name?: string): QueryTab {
   const id = String(++_tabId)
@@ -122,11 +126,15 @@ function newTab(name?: string): QueryTab {
 }
 
 export default function QueryPage() {
-  const { stacks, stackOrder, activeStack, setActiveStack, statuses } = useControl()
+  const { stacks, stackOrder, activeStack, setActiveStack, statuses, connected } = useControl()
   const { connType } = useConnectionContext()
 
-  const [tabs, setTabs] = useState<QueryTab[]>(DEMO_TABS)
-  const [activeTabId, setActiveTabId] = useState<string>('1')
+  const [tabs, setTabs] = useState<QueryTab[]>(() => {
+    try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEMO_TABS } catch { return DEMO_TABS }
+  })
+  const [activeTabId, setActiveTabId] = useState<string>(() =>
+    localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
+  )
   const [selectedProc, setSelectedProc] = useState<string | null>('wdb1')
   const [outputTab, setOutputTab] = useState<OutputTab>('output')
   const [result, setResult] = useState<unknown>(DEMO_RESULT)
@@ -139,7 +147,12 @@ export default function QueryPage() {
   const [page, setPage] = useState(1)
   const [outputHeight, setOutputHeight] = useState(() => parseInt(localStorage.getItem('qi_query_output_height') ?? '240'))
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false)
+  const [menuTabId, setMenuTabId] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{ top: number; left: number } | null>(null)
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   const activeTab = tabs.find(t => t.id === activeTabId) ?? tabs[0]
 
@@ -180,6 +193,37 @@ export default function QueryPage() {
       return next
     })
   }, [activeTabId])
+
+  // Persist tabs + active tab
+  useEffect(() => { localStorage.setItem(TABS_KEY, JSON.stringify(tabs)) }, [tabs])
+  useEffect(() => { localStorage.setItem(ACTIVE_TAB_KEY, activeTabId) }, [activeTabId])
+
+  // Focus rename input when it appears
+  useEffect(() => {
+    if (renamingTabId) renameInputRef.current?.select()
+  }, [renamingTabId])
+
+  const openMenu = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setMenuTabId(id)
+    setMenuAnchor({ top: rect.bottom + 4, left: rect.left })
+  }, [])
+
+  const startRename = useCallback((id: string) => {
+    const tab = tabs.find(t => t.id === id)
+    if (!tab) return
+    setRenameValue(tab.name)
+    setRenamingTabId(id)
+    setMenuTabId(null)
+    setMenuAnchor(null)
+  }, [tabs])
+
+  const commitRename = useCallback(() => {
+    const name = renameValue.trim()
+    if (name) setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
+    setRenamingTabId(null)
+  }, [renameValue, renamingTabId])
 
   const runQuery = useCallback(async (targetPage = page) => {
     if (!activeTab || running) return
@@ -267,22 +311,34 @@ export default function QueryPage() {
       <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-surface)]">
         <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto tab-scroll">
           {tabs.map(tab => (
-            <button
+            <div
               key={tab.id}
               onClick={() => setActiveTabId(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 cursor-pointer group/tab
                 ${tab.id === activeTabId
                   ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)] border border-[var(--border-tab-active)]'
                   : 'text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-              <span className="font-mono">{tab.name}</span>
-              {tabs.length > 1 && (
+              {renamingTabId === tab.id ? (
+                <input
+                  ref={renameInputRef}
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingTabId(null) }}
+                  onClick={e => e.stopPropagation()}
+                  className="font-mono bg-transparent focus:outline-none w-24 border-b border-blue-500"
+                />
+              ) : (
+                <span className="font-mono">{tab.name}</span>
+              )}
+              {tab.id === activeTabId && (
                 <span
-                  onClick={e => closeTab(tab.id, e)}
-                  className="text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors">
-                  <X size={10} />
+                  onClick={e => openMenu(tab.id, e)}
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] ml-0.5 cursor-pointer">
+                  <MoreHorizontal size={12} />
                 </span>
               )}
-            </button>
+            </div>
           ))}
           <button
             onClick={addTab}
@@ -306,11 +362,11 @@ export default function QueryPage() {
         <button
           onClick={() => runQuery()}
           disabled={running || !activeTab?.code.trim()}
-          title="Run (⌘+Enter)"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
           <Play size={12} />
           {running ? 'Running…' : 'Run'}
         </button>
+        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵</span>
       </div>
 
       {/* ── Main area: editor + right panel ── */}
@@ -357,27 +413,24 @@ export default function QueryPage() {
 
           {/* Process list */}
           <div className="flex-1 overflow-y-auto py-1">
-            {stackProcs.length === 0 ? (
-              <p className="text-xs text-[var(--text-faint)] px-3 py-2">No processes</p>
-            ) : (
-              stackProcs.map(proc => {
-                const status = statuses[activeStack]?.[proc]?.status ?? 'down'
-                const isUp = status === 'running'
-                const isSelected = selectedProc === proc
-                return (
-                  <button
-                    key={proc}
-                    onClick={() => setSelectedProc(proc)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors
-                      ${isSelected
-                        ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUp ? 'bg-emerald-400' : 'bg-red-500'}`} />
-                    <span className="truncate font-mono">{proc}</span>
-                  </button>
-                )
-              })
-            )}
+            {/* Hub — always shown */}
+            {(['hub', ...stackProcs]).map(proc => {
+              const isHub = proc === 'hub'
+              const isUp = isHub ? connected : statuses[activeStack]?.[proc]?.status === 'running'
+              const isSelected = selectedProc === proc
+              return (
+                <button
+                  key={proc}
+                  onClick={() => setSelectedProc(proc)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors
+                    ${isSelected
+                      ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUp ? 'bg-emerald-400' : 'bg-red-500'}`} />
+                  <span className="truncate font-mono">{proc}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -462,6 +515,28 @@ export default function QueryPage() {
           )}
         </div>
       </div>
+
+      {/* Tab context menu */}
+      {menuTabId && menuAnchor && createPortal(
+        <div
+          style={{ position: 'fixed', top: menuAnchor.top, left: menuAnchor.left }}
+          className="z-[9999] bg-[var(--bg-dropdown)] border border-[var(--border)] rounded-lg shadow-xl w-32 py-1"
+          onMouseLeave={() => { setMenuTabId(null); setMenuAnchor(null) }}>
+          <button
+            onClick={() => startRename(menuTabId)}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]">
+            <Pencil size={12} className="text-[var(--text-dimmed)]" /> Rename
+          </button>
+          {tabs.length > 1 && (
+            <button
+              onClick={e => { closeTab(menuTabId, e); setMenuTabId(null); setMenuAnchor(null) }}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-red-400 hover:bg-[var(--bg-hover-md)]">
+              <Trash2 size={12} /> Delete
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
