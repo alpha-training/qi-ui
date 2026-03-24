@@ -4,8 +4,11 @@ import { ConnectionProvider, useConnectionContext } from './context/ConnectionCo
 import { ControlProvider, useControl } from './context/ControlContext'
 import Sidebar from './components/sidebar/Sidebar'
 import ControlPage from './pages/ControlPage'
+import QueryPage from './pages/QueryPage'
 import ConnectionDropdown from './components/ConnectionDropdown'
 import { X, Wifi } from 'lucide-react'
+
+export type AppPage = 'control' | 'query'
 
 function ApiStatus() {
   const { connected } = useControl()
@@ -132,20 +135,24 @@ function OnboardingModal() {
   )
 }
 
+const PAGE_TITLES: Record<AppPage, string> = { control: 'Control', query: 'Query' }
+
 function AppShell() {
+  const [page, setPage] = useState<AppPage>('control')
   return (
     <ControlProvider>
       <div className="flex h-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden" style={{ fontFamily: "'Sora', sans-serif" }}>
-        <Sidebar />
+        <Sidebar activePage={page} onNavigate={setPage} />
         <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--border)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-3">
-              <span className="font-bold text-xl text-[var(--text-primary)]">Control</span>
+              <span className="font-bold text-xl text-[var(--text-primary)]">{PAGE_TITLES[page]}</span>
               <ApiStatus />
             </div>
             <ConnectionDropdown />
           </header>
-          <ControlPage />
+          {page === 'control' && <ControlPage />}
+          {page === 'query'   && <QueryPage />}
         </main>
       </div>
       <OnboardingModal />
