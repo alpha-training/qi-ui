@@ -168,6 +168,12 @@ function query<T>(cmd: string, timeoutMs = 5000): Promise<T> {
   )
 }
 
+// ─── Ad-hoc query (used by Query page) ───────────────────────────────────────
+
+export async function runQuery(cmd: string, timeoutMs = 10000): Promise<unknown> {
+  return query<unknown>(cmd, timeoutMs)
+}
+
 // ─── Health check ─────────────────────────────────────────────────────────────
 
 export async function ping(): Promise<boolean> {
