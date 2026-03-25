@@ -138,11 +138,14 @@ function OnboardingModal() {
 const PAGE_TITLES: Record<AppPage, string> = { control: 'Control', query: 'Query' }
 
 function AppShell() {
-  const [page, setPage] = useState<AppPage>('control')
+  const [page, setPage] = useState<AppPage>(() =>
+    (localStorage.getItem('qi_active_page') as AppPage) ?? 'control'
+  )
+  const navigate = (p: AppPage) => { setPage(p); localStorage.setItem('qi_active_page', p) }
   return (
     <ControlProvider>
       <div className="flex h-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden" style={{ fontFamily: "'Sora', sans-serif" }}>
-        <Sidebar activePage={page} onNavigate={setPage} />
+        <Sidebar activePage={page} onNavigate={navigate} />
         <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--border)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-3">
