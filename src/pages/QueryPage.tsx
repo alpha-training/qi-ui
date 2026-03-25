@@ -100,21 +100,8 @@ function ResultTable({ data }: { data: unknown }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const DEMO_CODE = `/ my dev1 code
-getTrades:{[d;s] select from trade where date in d,sym in s}
-getQuotes:{[d;s] select from quote where date in d,sym in s}`
-
-const DEMO_RESULT = [
-  { Name: 'Street Pulse Hoodie',  Type: 'Hoodie',  Vendor: 'StreetGear',  'In Stock': 150, 'Unit Cost': '$45', Material: 'Cotton',    Color: 'Black'      },
-  { Name: 'Urban Shadow Jacket',  Type: 'Jacket',  Vendor: 'CityWear',    'In Stock': 100, 'Unit Cost': '$60', Material: 'Polyester', Color: 'Gray'       },
-  { Name: 'Neon Splash Tee',      Type: 'T-Shirt', Vendor: 'UrbanTrend',  'In Stock': 200, 'Unit Cost': '$20', Material: 'Cotton',    Color: 'Neon Green' },
-  { Name: 'Night Walker Jeans',   Type: 'Jeans',   Vendor: 'DenimWorks',  'In Stock': 80,  'Unit Cost': '$50', Material: 'Denim',     Color: 'Dark Blue'  },
-]
-
-const DEMO_TABS: QueryTab[] = [
-  { id: '1', name: 'dev1.q',       code: DEMO_CODE },
-  { id: '2', name: 'research2.q',  code: '' },
-  { id: '3', name: 'myfile.q',     code: '' },
+const DEFAULT_TABS: QueryTab[] = [
+  { id: '1', name: 'query1.q', code: '' },
 ]
 
 const TABS_KEY       = 'qi_query_tabs'
@@ -132,15 +119,15 @@ export default function QueryPage() {
   const connType = activeConn?.type ?? 'q'
 
   const [tabs, setTabs] = useState<QueryTab[]>(() => {
-    try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEMO_TABS } catch { return DEMO_TABS }
+    try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEFAULT_TABS } catch { return DEFAULT_TABS }
   })
   const [activeTabId, setActiveTabId] = useState<string>(() =>
     localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
   )
-  const [selectedProc, setSelectedProc] = useState<string | null>('wdb1')
+  const [selectedProc, setSelectedProc] = useState<string | null>(null)
   const [outputTab, setOutputTab] = useState<OutputTab>('output')
-  const [result, setResult] = useState<unknown>(DEMO_RESULT)
-  const [rawOutput, setRawOutput] = useState<string>(JSON.stringify(DEMO_RESULT, null, 2))
+  const [result, setResult] = useState<unknown>(null)
+  const [rawOutput, setRawOutput] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [useQs, setUseQs] = useState(false)
@@ -230,7 +217,7 @@ export default function QueryPage() {
     setRenamingTabId(null)
   }, [renameValue, renamingTabId])
 
-  // Connect directly to a process and call .proc.ui.init[] via hub (once per proc)
+  // Connect directly to a process and call .proc.ui.init[] on it (once per proc)
   const ensureDirectConnection = useCallback(async (proc: string): Promise<DirectConnection> => {
     const stack = stacks[activeStack]
     if (!stack) throw new Error('No active stack')
@@ -240,22 +227,24 @@ export default function QueryPage() {
     const host = activeConn?.host ?? 'localhost'
     const port = stack.base_port + procDef.port_offset
 
-    // Init the process handler via hub (only once per proc)
-    if (!initializedProcs.current.has(`${activeStack}.${proc}`)) {
-      await qApi.runQuery(`.proc.ui.init[\`${proc}.${activeStack}]`, 5000).catch(() => {
-        // Try simpler form without stack qualifier
-        return qApi.runQuery(`.proc.ui.init[]`, 5000).catch(() => {})
-      })
-      initializedProcs.current.add(`${activeStack}.${proc}`)
-    }
-
     // Reuse existing connection if still open
     if (directRef.current?.connected) return directRef.current
+
+    // Call .proc.ui.init[] via hub IPC — kdb+ accepts IPC even without .z.ws,
+    // which installs the WebSocket handler so the direct WS connection can succeed
+    if (!initializedProcs.current.has(`${activeStack}.${proc}`)) {
+      await qApi.runQuery(
+        `h:hopen \`$":${host}:${port}"; h".proc.ui.init[]"; hclose h`,
+        5000
+      ).catch(() => {})
+      initializedProcs.current.add(`${activeStack}.${proc}`)
+    }
 
     directRef.current?.disconnect()
     const conn = new DirectConnection()
     setProcConnStatus('connecting')
     await conn.connect(host, port)
+
     directRef.current = conn
     setProcConnStatus('connected')
     return conn

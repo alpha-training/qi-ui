@@ -6,8 +6,8 @@
  *   Receive: binary kdb+ IPC, deserialised via c.js
  *            result shape: { format: 'text'|'data', result: unknown }
  *
- * Before sending queries, call .proc.ui.init[] on the process (via hub)
- * so it installs the correct .z.ws handler.
+ * Before sending queries, call initProcess() which sends .proc.ui.init[]
+ * directly on the connection so it installs the correct .z.ws handler.
  */
 
 import { deserialize } from '../lib/c.js'
@@ -93,6 +93,17 @@ export class DirectConnection {
 
       this.pending.push(entry)
       this.ws.send(JSON.stringify({ cmd, format }))
+    })
+  }
+
+  /** Send .proc.ui.init[] as a plain string directly on this connection.
+   *  The process evaluates it and installs the proper .z.ws handler.
+   *  We don't wait for a response — just give it 200ms to complete. */
+  initProcess(): Promise<void> {
+    return new Promise(resolve => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { resolve(); return }
+      try { this.ws.send('.proc.ui.init[]') } catch { /* ignore */ }
+      setTimeout(resolve, 200)
     })
   }
 
