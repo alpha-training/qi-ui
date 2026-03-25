@@ -119,7 +119,16 @@ export default function QueryPage() {
   const connType = activeConn?.type ?? 'q'
 
   const [tabs, setTabs] = useState<QueryTab[]>(() => {
-    try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEFAULT_TABS } catch { return DEFAULT_TABS }
+    try {
+      const saved = JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null')
+      // Wipe old demo data if any tab contains the clothing demo
+      if (Array.isArray(saved) && saved.some((t: QueryTab) => t.code?.includes('Street Pulse Hoodie') || t.name === 'research2.q')) {
+        localStorage.removeItem(TABS_KEY)
+        localStorage.removeItem(ACTIVE_TAB_KEY)
+        return DEFAULT_TABS
+      }
+      return saved ?? DEFAULT_TABS
+    } catch { return DEFAULT_TABS }
   })
   const [activeTabId, setActiveTabId] = useState<string>(() =>
     localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
