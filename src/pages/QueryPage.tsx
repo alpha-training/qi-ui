@@ -142,6 +142,7 @@ export default function QueryPage() {
   const [useQs, setUseQs] = useState(false)
   const [pagingEnabled, setPagingEnabled] = useState(false)
   const [pageSize, setPageSize] = useState(50)
+  const [pageSizeInput, setPageSizeInput] = useState('50')
   const [page, setPage] = useState(1)
   const [outputHeight, setOutputHeight] = useState(() => parseInt(localStorage.getItem('qi_query_output_height') ?? '240'))
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false)
@@ -281,18 +282,13 @@ export default function QueryPage() {
         throw new Error('Query page requires a q (WebSocket) connection')
       }
 
-      let cmd = code
-      if (pagingEnabled) {
-        const offset = (targetPage - 1) * pageSize
-        cmd = offset === 0
-          ? `select[${pageSize}]from (${cmd})`
-          : `select[${offset} ${pageSize}]from (${cmd})`
-      }
-
+      const cmd = code
       const format = useQs ? 'text' : 'data'
+      const pagestart = pagingEnabled && !codeOverride ? (targetPage - 1) * pageSize : 0
+      const pagesize  = pagingEnabled && !codeOverride ? pageSize : 100
 
       if (!selectedProc || selectedProc === 'hub') {
-        // Hub: use existing JSON WebSocket protocol
+        // Hub: use existing JSON WebSocket protocol (no server-side paging)
         const hubCmd = useQs ? `.Q.s[${cmd}]` : cmd
         const res = await qApi.runQuery(hubCmd)
         if (useQs || typeof res === 'string') {
@@ -303,7 +299,7 @@ export default function QueryPage() {
       } else {
         // Direct process connection using qdirect binary protocol
         const conn = await ensureDirectConnection(selectedProc)
-        const res = await conn.query(cmd, format)
+        const res = await conn.query(cmd, format, pagestart, pagesize)
         if (res.format === 'text' || typeof res.result === 'string') {
           setRawOutput(String(res.result)); setOutputTab('terminal'); setResult(null)
         } else {
@@ -316,6 +312,10 @@ export default function QueryPage() {
       setRawOutput(msg)
       setOutputTab('terminal')
       setProcConnStatus('error')
+      // Clear init flag so next attempt re-runs .proc.ui.init[]
+      if (selectedProc && selectedProc !== 'hub') {
+        initializedProcs.current.delete(`${activeStack}.${selectedProc}`)
+      }
     } finally {
       setRunning(false)
     }
@@ -331,16 +331,16 @@ export default function QueryPage() {
     const isMac = e.metaKey
     const isWin = e.ctrlKey
 
-    // ⌘/Ctrl+E — run selected text
+    // ⌘/Ctrl+E — run selected text (skip if it's a comment)
     if ((isMac || isWin) && e.key === 'e') {
       e.preventDefault()
       const ta = e.currentTarget
       const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim()
-      if (sel) runQuery(page, sel)
+      if (sel && !sel.startsWith('/')) runQuery(1, sel)
       return
     }
 
-    // ⌘/Ctrl+Enter — run current line
+    // ⌘/Ctrl+Enter — run current line (skip comments)
     if ((isMac || isWin) && e.key === 'Enter') {
       e.preventDefault()
       const ta = e.currentTarget
@@ -349,7 +349,7 @@ export default function QueryPage() {
       const lineStart = text.lastIndexOf('\n', pos - 1) + 1
       const lineEnd = text.indexOf('\n', pos)
       const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
-      if (line) runQuery(page, line)
+      if (line && !line.startsWith('/')) runQuery(1, line)
     }
   }, [runQuery, page])
 
@@ -555,8 +555,10 @@ export default function QueryPage() {
                   type="number"
                   min={1}
                   max={10000}
-                  value={pageSize}
-                  onChange={e => { const v = Math.max(1, parseInt(e.target.value) || 50); setPageSize(v); setPage(1) }}
+                  value={pageSizeInput}
+                  onChange={e => setPageSizeInput(e.target.value)}
+                  onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 50); setPageSize(v); setPageSizeInput(String(v)); setPage(1) }}
+                  onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(1, parseInt((e.target as HTMLInputElement).value) || 50); setPageSize(v); setPageSizeInput(String(v)); setPage(1) } }}
                   className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
                 />
                 <button

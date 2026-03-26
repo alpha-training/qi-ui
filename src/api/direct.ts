@@ -74,7 +74,7 @@ export class DirectConnection {
     })
   }
 
-  query(cmd: string, format: DirectFormat = 'data', timeoutMs = 10000): Promise<DirectResult> {
+  query(cmd: string, format: DirectFormat = 'data', pagestart = 0, pagesize = 100, timeoutMs = 10000): Promise<DirectResult> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('Not connected'))
@@ -92,7 +92,7 @@ export class DirectConnection {
       entry.reject  = (e) => { clearTimeout(timer); reject(e) }
 
       this.pending.push(entry)
-      this.ws.send(JSON.stringify({ cmd, format }))
+      this.ws.send(JSON.stringify({ cmd, format, pagestart, pagesize }))
     })
   }
 
