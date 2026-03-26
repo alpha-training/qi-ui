@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Play, Plus, X, ChevronDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Play, Plus, ChevronDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useControl } from '../context/ControlContext'
 import { useConnectionContext } from '../context/ConnectionContext'
 import * as qApi from '../api/qws'
@@ -266,9 +266,9 @@ export default function QueryPage() {
     setProcConnStatus('idle')
   }, [activeStack, selectedProc])
 
-  const runQuery = useCallback(async (targetPage = page) => {
+  const runQuery = useCallback(async (targetPage = page, codeOverride?: string) => {
     if (!activeTab || running) return
-    const code = activeTab.code.trim()
+    const code = (codeOverride ?? activeTab.code).trim()
     if (!code) return
 
     setRunning(true)
@@ -327,12 +327,31 @@ export default function QueryPage() {
     runQuery(next)
   }, [runQuery])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isMac = e.metaKey
+    const isWin = e.ctrlKey
+
+    // ⌘/Ctrl+E — run selected text
+    if ((isMac || isWin) && e.key === 'e') {
       e.preventDefault()
-      runQuery()
+      const ta = e.currentTarget
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim()
+      if (sel) runQuery(page, sel)
+      return
     }
-  }, [runQuery])
+
+    // ⌘/Ctrl+Enter — run current line
+    if ((isMac || isWin) && e.key === 'Enter') {
+      e.preventDefault()
+      const ta = e.currentTarget
+      const pos = ta.selectionStart
+      const text = ta.value
+      const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+      const lineEnd = text.indexOf('\n', pos)
+      const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
+      if (line) runQuery(page, line)
+    }
+  }, [runQuery, page])
 
   const handleOutputResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -415,7 +434,7 @@ export default function QueryPage() {
           <Play size={12} />
           {running ? 'Running…' : 'Run'}
         </button>
-        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵</span>
+        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵ line · ⌘E sel</span>
         {selectedProc && selectedProc !== 'hub' && (
           <span className={`text-xs shrink-0 ${
             procConnStatus === 'connected' ? 'text-emerald-400' :
