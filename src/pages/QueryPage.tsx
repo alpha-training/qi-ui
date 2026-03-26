@@ -15,7 +15,7 @@ interface QueryTab {
   code: string
 }
 
-type OutputTab = 'output' | 'terminal' | 'logs'
+type OutputTab = 'results' | 'console' | 'logs'
 
 // ─── Result rendering ─────────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ function ResultTable({ data }: { data: unknown }) {
                 <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
                 {cols.map(c => (
                   <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">
-                    {String(row[c] ?? '')}
+                    {fmtCell(row[c])}
                   </td>
                 ))}
               </tr>
@@ -78,7 +78,7 @@ function ResultTable({ data }: { data: unknown }) {
                   <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
                   {cols.map(c => (
                     <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">
-                      {String((data as Record<string, unknown[]>)[c][i] ?? '')}
+                      {fmtCell((data as Record<string, unknown[]>)[c][i])}
                     </td>
                   ))}
                 </tr>
@@ -96,6 +96,17 @@ function ResultTable({ data }: { data: unknown }) {
       {JSON.stringify(data, null, 2)}
     </pre>
   )
+}
+
+function fmtCell(v: unknown): string {
+  if (v instanceof Date) {
+    const y = v.getUTCFullYear(), m = String(v.getUTCMonth()+1).padStart(2,'0'), d = String(v.getUTCDate()).padStart(2,'0')
+    const hh = v.getUTCHours(), mm = v.getUTCMinutes(), ss = v.getUTCSeconds(), ms = v.getUTCMilliseconds()
+    if (hh || mm || ss || ms)
+      return `${y}.${m}.${d}D${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(ms).padStart(3,'0')}000000`
+    return `${y}.${m}.${d}`
+  }
+  return String(v ?? '')
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -134,12 +145,11 @@ export default function QueryPage() {
     localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
   )
   const [selectedProc, setSelectedProc] = useState<string | null>(null)
-  const [outputTab, setOutputTab] = useState<OutputTab>('output')
+  const [outputTab, setOutputTab] = useState<OutputTab>('results')
   const [result, setResult] = useState<unknown>(null)
   const [rawOutput, setRawOutput] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
-  const [useQs, setUseQs] = useState(false)
   const [pagingEnabled, setPagingEnabled] = useState(false)
   const [pageSize, setPageSize] = useState(50)
   const [pageSizeInput, setPageSizeInput] = useState('50')
@@ -283,34 +293,29 @@ export default function QueryPage() {
       }
 
       const cmd = code
-      const format = useQs ? 'text' : 'data'
       const pagestart = pagingEnabled && !codeOverride ? (targetPage - 1) * pageSize : 0
       const pagesize  = pagingEnabled && !codeOverride ? pageSize : 100
 
       if (!selectedProc || selectedProc === 'hub') {
-        // Hub: use existing JSON WebSocket protocol (no server-side paging)
-        const hubCmd = useQs ? `.Q.s[${cmd}]` : cmd
-        const res = await qApi.runQuery(hubCmd)
-        if (useQs || typeof res === 'string') {
-          setRawOutput(String(res)); setOutputTab('terminal'); setResult(null)
-        } else {
-          setResult(res); setRawOutput(JSON.stringify(res, null, 2)); setOutputTab('output')
-        }
+        // Hub: always use .Q.s text format
+        const res = await qApi.runQuery(`.Q.s[${cmd}]`)
+        setRawOutput(String(res)); setResult(null); setOutputTab('console')
       } else {
-        // Direct process connection using qdirect binary protocol
+        // Direct process: fetch both data (table) and text (.Q.s)
         const conn = await ensureDirectConnection(selectedProc)
-        const res = await conn.query(cmd, format, pagestart, pagesize)
-        if (res.format === 'text' || typeof res.result === 'string') {
-          setRawOutput(String(res.result)); setOutputTab('terminal'); setResult(null)
-        } else {
-          setResult(res.result); setRawOutput(JSON.stringify(res.result, null, 2)); setOutputTab('output')
-        }
+        const [dataRes, textRes] = await Promise.all([
+          conn.query(cmd, 'data', pagestart, pagesize),
+          conn.query(cmd, 'text', pagestart, pagesize),
+        ])
+        setResult(dataRes.result)
+        setRawOutput(String(textRes.result))
+        setOutputTab('results')
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
       setRawOutput(msg)
-      setOutputTab('terminal')
+      setOutputTab('console')
       setProcConnStatus('error')
       // Clear init flag so next attempt re-runs .proc.ui.init[]
       if (selectedProc && selectedProc !== 'hub') {
@@ -319,7 +324,7 @@ export default function QueryPage() {
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, page, pageSize, pagingEnabled, useQs, selectedProc, ensureDirectConnection])
+  }, [activeTab, running, connType, page, pageSize, pagingEnabled, selectedProc, ensureDirectConnection])
 
   const goToPage = useCallback((next: number) => {
     if (next < 1) return
@@ -414,17 +419,6 @@ export default function QueryPage() {
             <Plus size={14} />
           </button>
         </div>
-
-        {/* .Q.s toggle */}
-        <button
-          onClick={() => setUseQs(v => !v)}
-          title="Wrap result in .Q.s[] — displays kdb+ formatted text output"
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors shrink-0 border
-            ${useQs
-              ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
-              : 'border-[var(--border)] text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-          .Q.s
-        </button>
 
         {/* Run button */}
         <button
@@ -525,7 +519,7 @@ export default function QueryPage() {
 
         {/* Output tabs + paging controls */}
         <div className="flex items-center gap-1 px-3 border-b border-[var(--border)] shrink-0">
-          {(['output', 'terminal', 'logs'] as const).map(t => (
+          {(['results', 'console', 'logs'] as const).map(t => (
             <button
               key={t}
               onClick={() => setOutputTab(t)}
@@ -581,14 +575,14 @@ export default function QueryPage() {
 
         {/* Output content */}
         <div className="flex-1 overflow-auto">
-          {outputTab === 'output' && (
+          {outputTab === 'results' && (
             error
               ? <p className="text-xs text-red-400 p-3 font-mono">{error}</p>
               : result !== null
                 ? <ResultTable data={result} />
                 : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
           )}
-          {outputTab === 'terminal' && (
+          {outputTab === 'console' && (
             <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput || '—'}</pre>
           )}
           {outputTab === 'logs' && (
