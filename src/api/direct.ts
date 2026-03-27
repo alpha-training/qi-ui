@@ -62,13 +62,17 @@ export class DirectConnection {
       }
 
       ws.onmessage = (e: MessageEvent) => {
-        const raw = deserialize(e.data) as DirectResult | string
         const p = this.pending.shift()
         if (!p) return
-        if (typeof raw === 'string' && (raw as string).startsWith('kdb error:')) {
-          p.reject(new Error(raw as string))
-        } else {
-          p.resolve(raw as DirectResult)
+        try {
+          const raw = deserialize(e.data) as DirectResult | string
+          if (typeof raw === 'string' && (raw as string).startsWith('kdb error:')) {
+            p.reject(new Error(raw as string))
+          } else {
+            p.resolve(raw as DirectResult)
+          }
+        } catch (err) {
+          p.reject(err instanceof Error ? err : new Error(String(err)))
         }
       }
     })

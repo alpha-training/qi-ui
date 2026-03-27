@@ -150,10 +150,10 @@ export default function QueryPage() {
   const [rawOutput, setRawOutput] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
-  const [pagingEnabled, setPagingEnabled] = useState(false)
-  const [pageSize, setPageSize] = useState(50)
-  const [pageSizeInput, setPageSizeInput] = useState('50')
-  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
+  const [pageSizeInput, setPageSizeInput] = useState('100')
+  const [pageStart, setPageStart] = useState(0)
+  const [pageStartInput, setPageStartInput] = useState('0')
   const [outputHeight, setOutputHeight] = useState(() => parseInt(localStorage.getItem('qi_query_output_height') ?? '240'))
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false)
   const [menuTabId, setMenuTabId] = useState<string | null>(null)
@@ -277,7 +277,7 @@ export default function QueryPage() {
     setProcConnStatus('idle')
   }, [activeStack, selectedProc])
 
-  const runQuery = useCallback(async (targetPage = page, codeOverride?: string) => {
+  const runQuery = useCallback(async (targetStart = pageStart, codeOverride?: string) => {
     if (!activeTab || running) return
     const code = (codeOverride ?? activeTab.code).trim()
     if (!code) return
@@ -293,8 +293,8 @@ export default function QueryPage() {
       }
 
       const cmd = code
-      const pagestart = pagingEnabled && !codeOverride ? (targetPage - 1) * pageSize : 0
-      const pagesize  = pagingEnabled && !codeOverride ? pageSize : 100
+      const pagestart = codeOverride ? 0 : targetStart
+      const pagesize  = codeOverride ? 100 : pageSize
 
       if (!selectedProc || selectedProc === 'hub') {
         // Hub: always use .Q.s text format
@@ -303,12 +303,9 @@ export default function QueryPage() {
       } else {
         // Direct process: fetch both data (table) and text (.Q.s)
         const conn = await ensureDirectConnection(selectedProc)
-        const [dataRes, textRes] = await Promise.all([
-          conn.query(cmd, 'data', pagestart, pagesize),
-          conn.query(cmd, 'text', pagestart, pagesize),
-        ])
+        const dataRes = await conn.query(cmd, 'data', pagestart, pagesize, 30000)
         setResult(dataRes.result)
-        setRawOutput(String(textRes.result))
+        setRawOutput(JSON.stringify(dataRes.result, null, 2))
         setOutputTab('results')
       }
     } catch (e) {
@@ -317,19 +314,22 @@ export default function QueryPage() {
       setRawOutput(msg)
       setOutputTab('console')
       setProcConnStatus('error')
-      // Clear init flag so next attempt re-runs .proc.ui.init[]
-      if (selectedProc && selectedProc !== 'hub') {
+      // Only disconnect and clear init if it's a connection error (not a query timeout)
+      if (selectedProc && selectedProc !== 'hub' && !msg.includes('timed out')) {
         initializedProcs.current.delete(`${activeStack}.${selectedProc}`)
+        directRef.current?.disconnect()
+        directRef.current = null
       }
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, page, pageSize, pagingEnabled, selectedProc, ensureDirectConnection])
+  }, [activeTab, running, connType, pageStart, pageSize, selectedProc, ensureDirectConnection])
 
-  const goToPage = useCallback((next: number) => {
-    if (next < 1) return
-    setPage(next)
-    runQuery(next)
+  const goToOffset = useCallback((next: number) => {
+    const offset = Math.max(0, next)
+    setPageStart(offset)
+    setPageStartInput(String(offset))
+    runQuery(offset)
   }, [runQuery])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -356,7 +356,7 @@ export default function QueryPage() {
       const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
       if (line && !line.startsWith('/')) runQuery(1, line)
     }
-  }, [runQuery, page])
+  }, [runQuery, pageStart])
 
   const handleOutputResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -532,44 +532,38 @@ export default function QueryPage() {
           ))}
 
           <div className="flex items-center gap-2 ml-auto">
-            {/* Paging toggle */}
+            <span className="text-[var(--text-faint)] text-xs">offset</span>
+            <input
+              type="number" min={0} value={pageStartInput}
+              disabled={!result && !rawOutput}
+              onChange={e => setPageStartInput(e.target.value)}
+              onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStart(v); setPageStartInput(String(v)) }}
+              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0); setPageStart(v); setPageStartInput(String(v)); runQuery(v) } }}
+              className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center disabled:opacity-30"
+            />
+            <span className="text-[var(--text-faint)] text-xs">size</span>
+            <input
+              type="number" min={1} max={10000} value={pageSizeInput}
+              onChange={e => setPageSizeInput(e.target.value)}
+              onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') }}
+              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(1, parseInt((e.target as HTMLInputElement).value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') } }}
+              className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
+            />
             <button
-              onClick={() => { setPagingEnabled(v => !v); setPage(1) }}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors border
-                ${pagingEnabled
-                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
-                  : 'border-[var(--border)] text-[var(--text-faint)] hover:text-[var(--text-dimmed)]'}`}>
-              paging
+              onClick={() => goToOffset(pageStart - pageSize)}
+              disabled={pageStart === 0 || running || (!result && !rawOutput)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              ◀ Prev
             </button>
-
-            {pagingEnabled && (
-              <>
-                <span className="text-[var(--text-faint)] text-xs">rows</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={10000}
-                  value={pageSizeInput}
-                  onChange={e => setPageSizeInput(e.target.value)}
-                  onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 50); setPageSize(v); setPageSizeInput(String(v)); setPage(1) }}
-                  onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(1, parseInt((e.target as HTMLInputElement).value) || 50); setPageSize(v); setPageSizeInput(String(v)); setPage(1) } }}
-                  className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
-                />
-                <button
-                  onClick={() => goToPage(page - 1)}
-                  disabled={page <= 1 || running}
-                  className="px-1.5 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
-                  ◀
-                </button>
-                <span className="text-xs text-[var(--text-secondary)] min-w-[3rem] text-center">p.{page}</span>
-                <button
-                  onClick={() => goToPage(page + 1)}
-                  disabled={running}
-                  className="px-1.5 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
-                  ▶
-                </button>
-              </>
-            )}
+            <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
+              rows {pageStart}–{pageStart + pageSize}
+            </span>
+            <button
+              onClick={() => goToOffset(pageStart + pageSize)}
+              disabled={running || (!result && !rawOutput)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              Next ▶
+            </button>
           </div>
         </div>
 
