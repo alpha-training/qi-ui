@@ -15,99 +15,47 @@ interface QueryTab {
   code: string
 }
 
-type OutputTab = 'results' | 'console' | 'logs'
+type OutputTab = 'results' | 'logs'
 
-// ─── Result rendering ─────────────────────────────────────────────────────────
+// ─── Result table (hidden for now, kept for future use) ───────────────────────
 
-function ResultTable({ data }: { data: unknown }) {
-  if (data === null || data === undefined) {
-    return <span className="text-[var(--text-dimmed)] text-xs">null</span>
-  }
-
-  // Array of objects → table
-  if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
-    const cols = Object.keys(data[0] as object)
-    return (
-      <div className="overflow-auto flex-1">
-        <table className="w-full text-xs border-collapse">
-          <thead className="sticky top-0 bg-[var(--bg-panel)]">
-            <tr>
-              <th className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium w-8">#</th>
-              {cols.map(c => (
-                <th key={c} className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium">{c}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(data as Record<string, unknown>[]).map((row, i) => (
-              <tr key={i} className={i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-panel)]'}>
-                <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
-                {cols.map(c => (
-                  <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">
-                    {fmtCell(row[c])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
-
-  // Column-oriented dict with all-array values → table
-  if (typeof data === 'object' && !Array.isArray(data) && data !== null) {
-    const entries = Object.entries(data as Record<string, unknown>)
-    if (entries.length > 0 && entries.every(([, v]) => Array.isArray(v))) {
-      const cols = entries.map(([k]) => k)
-      const rows = (entries[0][1] as unknown[]).length
-      return (
-        <div className="overflow-auto flex-1">
-          <table className="w-full text-xs border-collapse">
-            <thead className="sticky top-0 bg-[var(--bg-panel)]">
-              <tr>
-                <th className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium w-8">#</th>
-                {cols.map(c => (
-                  <th key={c} className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium">{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: rows }, (_, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-panel)]'}>
-                  <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
-                  {cols.map(c => (
-                    <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">
-                      {fmtCell((data as Record<string, unknown[]>)[c][i])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )
-    }
-  }
-
-  // Scalar or simple array → raw display
-  return (
-    <pre className="text-xs text-[var(--text-secondary)] p-3 whitespace-pre-wrap font-mono">
-      {JSON.stringify(data, null, 2)}
-    </pre>
-  )
-}
-
-function fmtCell(v: unknown): string {
-  if (v instanceof Date) {
-    const y = v.getUTCFullYear(), m = String(v.getUTCMonth()+1).padStart(2,'0'), d = String(v.getUTCDate()).padStart(2,'0')
-    const hh = v.getUTCHours(), mm = v.getUTCMinutes(), ss = v.getUTCSeconds(), ms = v.getUTCMilliseconds()
-    if (hh || mm || ss || ms)
-      return `${y}.${m}.${d}D${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(ms).padStart(3,'0')}000000`
-    return `${y}.${m}.${d}`
-  }
-  return String(v ?? '')
-}
+// function fmtCell(v: unknown): string {
+//   if (v instanceof Date) {
+//     const y = v.getUTCFullYear(), m = String(v.getUTCMonth()+1).padStart(2,'0'), d = String(v.getUTCDate()).padStart(2,'0')
+//     const hh = v.getUTCHours(), mm = v.getUTCMinutes(), ss = v.getUTCSeconds(), ms = v.getUTCMilliseconds()
+//     if (hh || mm || ss || ms)
+//       return `${y}.${m}.${d}D${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(ms).padStart(3,'0')}000000`
+//     return `${y}.${m}.${d}`
+//   }
+//   return String(v ?? '')
+// }
+//
+// function ResultTable({ data }: { data: unknown }) {
+//   if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
+//     const cols = Object.keys(data[0] as object)
+//     return (
+//       <div className="overflow-auto flex-1">
+//         <table className="w-full text-xs border-collapse">
+//           <thead className="sticky top-0 bg-[var(--bg-panel)]">
+//             <tr>
+//               <th className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium w-8">#</th>
+//               {cols.map(c => <th key={c} className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium">{c}</th>)}
+//             </tr>
+//           </thead>
+//           <tbody>
+//             {(data as Record<string, unknown>[]).map((row, i) => (
+//               <tr key={i} className={i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-panel)]'}>
+//                 <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
+//                 {cols.map(c => <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">{fmtCell(row[c])}</td>)}
+//               </tr>
+//             ))}
+//           </tbody>
+//         </table>
+//       </div>
+//     )
+//   }
+//   return <pre className="text-xs text-[var(--text-secondary)] p-3 whitespace-pre-wrap font-mono">{JSON.stringify(data, null, 2)}</pre>
+// }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -146,7 +94,6 @@ export default function QueryPage() {
   )
   const [selectedProc, setSelectedProc] = useState<string | null>(null)
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
-  const [result, setResult] = useState<unknown>(null)
   const [rawOutput, setRawOutput] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
@@ -284,7 +231,6 @@ export default function QueryPage() {
 
     setRunning(true)
     setError(null)
-    setResult(null)
     setRawOutput('')
 
     try {
@@ -299,20 +245,19 @@ export default function QueryPage() {
       if (!selectedProc || selectedProc === 'hub') {
         // Hub: always use .Q.s text format
         const res = await qApi.runQuery(`.Q.s[${cmd}]`)
-        setRawOutput(String(res)); setResult(null); setOutputTab('console')
+        setRawOutput(String(res)); setOutputTab('results')
       } else {
-        // Direct process: fetch both data (table) and text (.Q.s)
+        // Direct process: .Q.s text format
         const conn = await ensureDirectConnection(selectedProc)
-        const dataRes = await conn.query(cmd, 'data', pagestart, pagesize, 30000)
-        setResult(dataRes.result)
-        setRawOutput(JSON.stringify(dataRes.result, null, 2))
+        const textRes = await conn.query(cmd, 'text', pagestart, pagesize, 30000)
+        setRawOutput(String(textRes.result ?? ''))
         setOutputTab('results')
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
       setRawOutput(msg)
-      setOutputTab('console')
+      setOutputTab('results')
       setProcConnStatus('error')
       // Only disconnect and clear init if it's a connection error (not a query timeout)
       if (selectedProc && selectedProc !== 'hub' && !msg.includes('timed out')) {
@@ -519,7 +464,7 @@ export default function QueryPage() {
 
         {/* Output tabs + paging controls */}
         <div className="flex items-center gap-1 px-3 border-b border-[var(--border)] shrink-0">
-          {(['results', 'console', 'logs'] as const).map(t => (
+          {(['results', 'logs'] as const).map(t => (
             <button
               key={t}
               onClick={() => setOutputTab(t)}
@@ -535,7 +480,7 @@ export default function QueryPage() {
             <span className="text-[var(--text-faint)] text-xs">offset</span>
             <input
               type="number" min={0} value={pageStartInput}
-              disabled={!result && !rawOutput}
+              disabled={!rawOutput}
               onChange={e => setPageStartInput(e.target.value)}
               onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStart(v); setPageStartInput(String(v)) }}
               onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0); setPageStart(v); setPageStartInput(String(v)); runQuery(v) } }}
@@ -551,7 +496,7 @@ export default function QueryPage() {
             />
             <button
               onClick={() => goToOffset(pageStart - pageSize)}
-              disabled={pageStart === 0 || running || (!result && !rawOutput)}
+              disabled={pageStart === 0 || running || (!rawOutput)}
               className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
               ◀ Prev
             </button>
@@ -560,7 +505,7 @@ export default function QueryPage() {
             </span>
             <button
               onClick={() => goToOffset(pageStart + pageSize)}
-              disabled={running || (!result && !rawOutput)}
+              disabled={running || (!rawOutput)}
               className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
               Next ▶
             </button>
@@ -571,13 +516,10 @@ export default function QueryPage() {
         <div className="flex-1 overflow-auto">
           {outputTab === 'results' && (
             error
-              ? <p className="text-xs text-red-400 p-3 font-mono">{error}</p>
-              : result !== null
-                ? <ResultTable data={result} />
+              ? <pre className="text-xs text-red-400 p-3 font-mono whitespace-pre-wrap">{error}</pre>
+              : rawOutput
+                ? <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput}</pre>
                 : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
-          )}
-          {outputTab === 'console' && (
-            <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput || '—'}</pre>
           )}
           {outputTab === 'logs' && (
             <LogsPanel height={outputHeight - 40} />
