@@ -96,7 +96,7 @@ export class DirectConnection {
       entry.reject  = (e) => { clearTimeout(timer); reject(e) }
 
       this.pending.push(entry)
-      this.ws.send(JSON.stringify({ cmd, format, pagestart, pagesize }))
+      this.ws.send(JSON.stringify({ cmd, format, pagestart: pagestart | 0, pagesize: pagesize | 0 }))
     })
   }
 
