@@ -17,6 +17,7 @@ export type DirectFormat = 'text' | 'data'
 export interface DirectResult {
   format: DirectFormat
   result: unknown
+  count?: number
 }
 
 type PendingEntry = {

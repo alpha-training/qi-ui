@@ -63,7 +63,6 @@ const DEFAULT_TABS: QueryTab[] = [
   { id: '1', name: 'query1.q', code: '' },
 ]
 
-const TABS_KEY       = 'qi_query_tabs'
 const ACTIVE_TAB_KEY = 'qi_query_active_tab'
 
 let _tabId = 3
@@ -77,25 +76,45 @@ export default function QueryPage() {
   const { activeConn } = useConnectionContext()
   const connType = activeConn?.type ?? 'q'
 
-  const [tabs, setTabs] = useState<QueryTab[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null')
-      // Wipe old demo data if any tab contains the clothing demo
-      if (Array.isArray(saved) && saved.some((t: QueryTab) => t.code?.includes('Street Pulse Hoodie') || t.name === 'research2.q')) {
-        localStorage.removeItem(TABS_KEY)
-        localStorage.removeItem(ACTIVE_TAB_KEY)
-        return DEFAULT_TABS
+  const [tabs, setTabs] = useState<QueryTab[]>(DEFAULT_TABS)
+  const [tabsLoaded, setTabsLoaded] = useState(false)
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Load scripts from backend on connect
+  useEffect(() => {
+    if (!connected || tabsLoaded) return
+    qApi.readScripts().then(async names => {
+      if (!names || names.length === 0) return
+      const loaded = await Promise.all(
+        names.map(async (name, i): Promise<QueryTab> => {
+          const code = await qApi.readScript(name).catch(() => '')
+          return { id: String(i + 1), name, code }
+        })
+      )
+      if (loaded.length > 0) {
+        setTabs(loaded)
+        _tabId = loaded.length
       }
-      return saved ?? DEFAULT_TABS
-    } catch { return DEFAULT_TABS }
-  })
+      setTabsLoaded(true)
+    }).catch(() => setTabsLoaded(true))
+  }, [connected, tabsLoaded])
   const [activeTabId, setActiveTabId] = useState<string>(() =>
     localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
   )
   const [selectedProc, setSelectedProc] = useState<string | null>('hub')
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
-  const [rawOutput, setRawOutput] = useState<string>('')
-  const [error, setError] = useState<string | null>(null)
+  const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null }>>({})
+  const procKey = `${activeStack}.${selectedProc ?? 'hub'}`
+  const rawOutput = outputMap[procKey]?.raw ?? ''
+  const error = outputMap[procKey]?.error ?? null
+  const totalCount = outputMap[procKey]?.total ?? null
+
+  const setRawOutput = useCallback((raw: string, total?: number | null) => {
+    setOutputMap(m => ({ ...m, [procKey]: { raw, error: null, total: total ?? m[procKey]?.total ?? null } }))
+  }, [procKey])
+  const setError = useCallback((err: string | null) => {
+    setOutputMap(m => ({ ...m, [procKey]: { raw: m[procKey]?.raw ?? '', error: err, total: m[procKey]?.total ?? null } }))
+  }, [procKey])
   const [running, setRunning] = useState(false)
   const [pageSize, setPageSize] = useState(100)
   const [pageSizeInput, setPageSizeInput] = useState('100')
@@ -153,8 +172,17 @@ export default function QueryPage() {
     })
   }, [activeTabId])
 
-  // Persist tabs + active tab
-  useEffect(() => { localStorage.setItem(TABS_KEY, JSON.stringify(tabs)) }, [tabs])
+  // Auto-save changed tabs to backend (debounced 1s)
+  useEffect(() => {
+    if (!tabsLoaded) return
+    for (const tab of tabs) {
+      clearTimeout(saveTimers.current[tab.id])
+      saveTimers.current[tab.id] = setTimeout(() => {
+        qApi.writeScript(tab.name, tab.code).catch(() => {})
+      }, 1000)
+    }
+  }, [tabs, tabsLoaded])
+
   useEffect(() => { localStorage.setItem(ACTIVE_TAB_KEY, activeTabId) }, [activeTabId])
 
   // Focus rename input when it appears
@@ -180,9 +208,17 @@ export default function QueryPage() {
 
   const commitRename = useCallback(() => {
     const name = renameValue.trim()
-    if (name) setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
+    if (name) {
+      const old = tabs.find(t => t.id === renamingTabId)
+      setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
+      if (old && old.name !== name) {
+        // Write under new name, clear old name with empty content
+        qApi.writeScript(name, old.code).catch(() => {})
+        qApi.writeScript(old.name, '').catch(() => {})
+      }
+    }
     setRenamingTabId(null)
-  }, [renameValue, renamingTabId])
+  }, [renameValue, renamingTabId, tabs])
 
   // Connect directly to a process and call .proc.ui.init[] on it (once per proc)
   const ensureDirectConnection = useCallback(async (proc: string): Promise<DirectConnection> => {
@@ -230,8 +266,7 @@ export default function QueryPage() {
     if (!code) return
 
     setRunning(true)
-    setError(null)
-    setRawOutput('')
+    setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null } }))
 
     try {
       if (connType !== 'q') {
@@ -245,12 +280,12 @@ export default function QueryPage() {
       if (!selectedProc || selectedProc === 'hub') {
         // Hub: always use .Q.s text format
         const res = await qApi.runQuery(`.Q.s[${cmd}]`)
-        setRawOutput(String(res)); setOutputTab('results')
+        setRawOutput(String(res), null); setOutputTab('results')
       } else {
         // Direct process: .Q.s text format
         const conn = await ensureDirectConnection(selectedProc)
         const textRes = await conn.query(cmd, 'text', pagestart, pagesize, 30000)
-        setRawOutput(String(textRes.result ?? ''))
+        setRawOutput(String(textRes.result ?? ''), textRes.count ?? null)
         setOutputTab('results')
       }
     } catch (e) {
@@ -268,7 +303,7 @@ export default function QueryPage() {
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, pageStart, pageSize, selectedProc, ensureDirectConnection])
+  }, [activeTab, running, connType, pageStart, pageSize, selectedProc, procKey, ensureDirectConnection])
 
   const goToOffset = useCallback((next: number) => {
     const offset = Math.max(0, next)
@@ -281,12 +316,16 @@ export default function QueryPage() {
     const isMac = e.metaKey
     const isWin = e.ctrlKey
 
-    // ⌘/Ctrl+E — run selected text (skip if it's a comment)
+    // ⌘/Ctrl+E — run selection if any, otherwise run whole script
     if ((isMac || isWin) && e.key === 'e') {
       e.preventDefault()
       const ta = e.currentTarget
       const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim()
-      if (sel && !sel.startsWith('/')) runQuery(1, sel)
+      if (sel && !sel.startsWith('/')) {
+        runQuery(pageStart, sel)
+      } else {
+        runQuery()
+      }
       return
     }
 
@@ -373,7 +412,7 @@ export default function QueryPage() {
           <Play size={12} />
           {running ? 'Running…' : 'Run'}
         </button>
-        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵ line · ⌘E sel</span>
+        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵ line · ⌘E sel/all</span>
         {selectedProc && selectedProc !== 'hub' && (
           <span className={`text-xs shrink-0 ${
             procConnStatus === 'connected' ? 'text-emerald-400' :
@@ -502,7 +541,7 @@ export default function QueryPage() {
               ◀ Prev
             </button>
             <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
-              rows {pageStart}–{pageStart + pageSize}
+              rows {pageStart}–{pageStart + pageSize}{totalCount !== null ? ` of ${totalCount}` : ''}
             </span>
             <button
               onClick={() => goToOffset(pageStart + pageSize)}
