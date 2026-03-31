@@ -92,7 +92,7 @@ export default function QueryPage() {
   const [activeTabId, setActiveTabId] = useState<string>(() =>
     localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
   )
-  const [selectedProc, setSelectedProc] = useState<string | null>(null)
+  const [selectedProc, setSelectedProc] = useState<string | null>('hub')
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
   const [rawOutput, setRawOutput] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -301,7 +301,7 @@ export default function QueryPage() {
       const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
       if (line && !line.startsWith('/')) runQuery(1, line)
     }
-  }, [runQuery, pageStart])
+  }, [runQuery])
 
   const handleOutputResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -476,7 +476,8 @@ export default function QueryPage() {
             </button>
           ))}
 
-          <div className="flex items-center gap-2 ml-auto">
+          {(!selectedProc || selectedProc === 'hub') ? <div className="ml-auto" /> : null}
+          {selectedProc && selectedProc !== 'hub' && <div className="flex items-center gap-2 ml-auto">
             <span className="text-[var(--text-faint)] text-xs">offset</span>
             <input
               type="number" min={0} value={pageStartInput}
@@ -509,7 +510,7 @@ export default function QueryPage() {
               className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
               Next ▶
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Output content */}
