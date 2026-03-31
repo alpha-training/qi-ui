@@ -17,6 +17,7 @@ export type DirectFormat = 'text' | 'data'
 export interface DirectResult {
   format: DirectFormat
   result: unknown
+  count?: number
 }
 
 type PendingEntry = {
@@ -62,19 +63,23 @@ export class DirectConnection {
       }
 
       ws.onmessage = (e: MessageEvent) => {
-        const raw = deserialize(e.data) as DirectResult | string
         const p = this.pending.shift()
         if (!p) return
-        if (typeof raw === 'string' && (raw as string).startsWith('kdb error:')) {
-          p.reject(new Error(raw as string))
-        } else {
-          p.resolve(raw as DirectResult)
+        try {
+          const raw = deserialize(e.data) as DirectResult | string
+          if (typeof raw === 'string' && (raw as string).startsWith('kdb error:')) {
+            p.reject(new Error(raw as string))
+          } else {
+            p.resolve(raw as DirectResult)
+          }
+        } catch (err) {
+          p.reject(err instanceof Error ? err : new Error(String(err)))
         }
       }
     })
   }
 
-  query(cmd: string, format: DirectFormat = 'data', timeoutMs = 10000): Promise<DirectResult> {
+  query(cmd: string, format: DirectFormat = 'data', pagestart = 0, pagesize = 100, timeoutMs = 10000): Promise<DirectResult> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('Not connected'))
@@ -92,7 +97,7 @@ export class DirectConnection {
       entry.reject  = (e) => { clearTimeout(timer); reject(e) }
 
       this.pending.push(entry)
-      this.ws.send(JSON.stringify({ cmd, format }))
+      this.ws.send(JSON.stringify({ cmd, format, pagestart: pagestart | 0, pagesize: pagesize | 0 }))
     })
   }
 

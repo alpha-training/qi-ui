@@ -283,6 +283,23 @@ export async function refreshLogs(
   return query(`refreshlogs[${stackArg};${procArg}]`, 3000)
 }
 
+// ─── Script persistence ───────────────────────────────────────────────────────
+
+export async function readScripts(): Promise<string[]> {
+  return query<string[]>('readscripts[]', 5000)
+}
+
+export async function readScript(name: string): Promise<string> {
+  const lines = await query<string | string[]>(`readscript["${name}"]`, 5000)
+  return Array.isArray(lines) ? lines.join('\n') : String(lines)
+}
+
+export async function writeScript(name: string, code: string): Promise<void> {
+  const lines = code.split('\n')
+  const linesQ = '(' + lines.map(l => `"${l.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(';') + ')'
+  await query(`writescript["${name}";${linesQ}]`, 5000)
+}
+
 // ─── Process control ──────────────────────────────────────────────────────────
 
 export async function startProcess(stack: string, proc: string): Promise<void> {

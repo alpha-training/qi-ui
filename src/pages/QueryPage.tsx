@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Play, Plus, X, ChevronDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Play, Plus, ChevronDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useControl } from '../context/ControlContext'
 import { useConnectionContext } from '../context/ConnectionContext'
 import * as qApi from '../api/qws'
@@ -15,88 +15,47 @@ interface QueryTab {
   code: string
 }
 
-type OutputTab = 'output' | 'terminal' | 'logs'
+type OutputTab = 'results' | 'logs'
 
-// ─── Result rendering ─────────────────────────────────────────────────────────
+// ─── Result table (hidden for now, kept for future use) ───────────────────────
 
-function ResultTable({ data }: { data: unknown }) {
-  if (data === null || data === undefined) {
-    return <span className="text-[var(--text-dimmed)] text-xs">null</span>
-  }
-
-  // Array of objects → table
-  if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
-    const cols = Object.keys(data[0] as object)
-    return (
-      <div className="overflow-auto flex-1">
-        <table className="w-full text-xs border-collapse">
-          <thead className="sticky top-0 bg-[var(--bg-panel)]">
-            <tr>
-              <th className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium w-8">#</th>
-              {cols.map(c => (
-                <th key={c} className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium">{c}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(data as Record<string, unknown>[]).map((row, i) => (
-              <tr key={i} className={i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-panel)]'}>
-                <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
-                {cols.map(c => (
-                  <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">
-                    {String(row[c] ?? '')}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
-
-  // Column-oriented dict with all-array values → table
-  if (typeof data === 'object' && !Array.isArray(data) && data !== null) {
-    const entries = Object.entries(data as Record<string, unknown>)
-    if (entries.length > 0 && entries.every(([, v]) => Array.isArray(v))) {
-      const cols = entries.map(([k]) => k)
-      const rows = (entries[0][1] as unknown[]).length
-      return (
-        <div className="overflow-auto flex-1">
-          <table className="w-full text-xs border-collapse">
-            <thead className="sticky top-0 bg-[var(--bg-panel)]">
-              <tr>
-                <th className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium w-8">#</th>
-                {cols.map(c => (
-                  <th key={c} className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium">{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: rows }, (_, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-panel)]'}>
-                  <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
-                  {cols.map(c => (
-                    <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">
-                      {String((data as Record<string, unknown[]>)[c][i] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )
-    }
-  }
-
-  // Scalar or simple array → raw display
-  return (
-    <pre className="text-xs text-[var(--text-secondary)] p-3 whitespace-pre-wrap font-mono">
-      {JSON.stringify(data, null, 2)}
-    </pre>
-  )
-}
+// function fmtCell(v: unknown): string {
+//   if (v instanceof Date) {
+//     const y = v.getUTCFullYear(), m = String(v.getUTCMonth()+1).padStart(2,'0'), d = String(v.getUTCDate()).padStart(2,'0')
+//     const hh = v.getUTCHours(), mm = v.getUTCMinutes(), ss = v.getUTCSeconds(), ms = v.getUTCMilliseconds()
+//     if (hh || mm || ss || ms)
+//       return `${y}.${m}.${d}D${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(ms).padStart(3,'0')}000000`
+//     return `${y}.${m}.${d}`
+//   }
+//   return String(v ?? '')
+// }
+//
+// function ResultTable({ data }: { data: unknown }) {
+//   if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
+//     const cols = Object.keys(data[0] as object)
+//     return (
+//       <div className="overflow-auto flex-1">
+//         <table className="w-full text-xs border-collapse">
+//           <thead className="sticky top-0 bg-[var(--bg-panel)]">
+//             <tr>
+//               <th className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium w-8">#</th>
+//               {cols.map(c => <th key={c} className="px-3 py-2 text-left text-[var(--text-dimmed)] border-b border-[var(--border)] font-medium">{c}</th>)}
+//             </tr>
+//           </thead>
+//           <tbody>
+//             {(data as Record<string, unknown>[]).map((row, i) => (
+//               <tr key={i} className={i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-panel)]'}>
+//                 <td className="px-3 py-1.5 text-[var(--text-faint)]">{i + 1}</td>
+//                 {cols.map(c => <td key={c} className="px-3 py-1.5 text-[var(--text-secondary)]">{fmtCell(row[c])}</td>)}
+//               </tr>
+//             ))}
+//           </tbody>
+//         </table>
+//       </div>
+//     )
+//   }
+//   return <pre className="text-xs text-[var(--text-secondary)] p-3 whitespace-pre-wrap font-mono">{JSON.stringify(data, null, 2)}</pre>
+// }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -104,7 +63,6 @@ const DEFAULT_TABS: QueryTab[] = [
   { id: '1', name: 'query1.q', code: '' },
 ]
 
-const TABS_KEY       = 'qi_query_tabs'
 const ACTIVE_TAB_KEY = 'qi_query_active_tab'
 
 let _tabId = 3
@@ -118,22 +76,50 @@ export default function QueryPage() {
   const { activeConn } = useConnectionContext()
   const connType = activeConn?.type ?? 'q'
 
-  const [tabs, setTabs] = useState<QueryTab[]>(() => {
-    try { return JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') ?? DEFAULT_TABS } catch { return DEFAULT_TABS }
-  })
+  const [tabs, setTabs] = useState<QueryTab[]>(DEFAULT_TABS)
+  const [tabsLoaded, setTabsLoaded] = useState(false)
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Load scripts from backend on connect
+  useEffect(() => {
+    if (!connected || tabsLoaded) return
+    qApi.readScripts().then(async names => {
+      if (!names || names.length === 0) return
+      const loaded = await Promise.all(
+        names.map(async (name, i): Promise<QueryTab> => {
+          const code = await qApi.readScript(name).catch(() => '')
+          return { id: String(i + 1), name, code }
+        })
+      )
+      if (loaded.length > 0) {
+        setTabs(loaded)
+        _tabId = loaded.length
+      }
+      setTabsLoaded(true)
+    }).catch(() => setTabsLoaded(true))
+  }, [connected, tabsLoaded])
   const [activeTabId, setActiveTabId] = useState<string>(() =>
     localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
   )
-  const [selectedProc, setSelectedProc] = useState<string | null>(null)
-  const [outputTab, setOutputTab] = useState<OutputTab>('output')
-  const [result, setResult] = useState<unknown>(null)
-  const [rawOutput, setRawOutput] = useState<string>('')
-  const [error, setError] = useState<string | null>(null)
+  const [selectedProc, setSelectedProc] = useState<string | null>('hub')
+  const [outputTab, setOutputTab] = useState<OutputTab>('results')
+  const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null }>>({})
+  const procKey = `${activeStack}.${selectedProc ?? 'hub'}`
+  const rawOutput = outputMap[procKey]?.raw ?? ''
+  const error = outputMap[procKey]?.error ?? null
+  const totalCount = outputMap[procKey]?.total ?? null
+
+  const setRawOutput = useCallback((raw: string, total?: number | null) => {
+    setOutputMap(m => ({ ...m, [procKey]: { raw, error: null, total: total ?? m[procKey]?.total ?? null } }))
+  }, [procKey])
+  const setError = useCallback((err: string | null) => {
+    setOutputMap(m => ({ ...m, [procKey]: { raw: m[procKey]?.raw ?? '', error: err, total: m[procKey]?.total ?? null } }))
+  }, [procKey])
   const [running, setRunning] = useState(false)
-  const [useQs, setUseQs] = useState(false)
-  const [pagingEnabled, setPagingEnabled] = useState(false)
-  const [pageSize, setPageSize] = useState(50)
-  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
+  const [pageSizeInput, setPageSizeInput] = useState('100')
+  const [pageStart, setPageStart] = useState(0)
+  const [pageStartInput, setPageStartInput] = useState('0')
   const [outputHeight, setOutputHeight] = useState(() => parseInt(localStorage.getItem('qi_query_output_height') ?? '240'))
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false)
   const [menuTabId, setMenuTabId] = useState<string | null>(null)
@@ -186,8 +172,17 @@ export default function QueryPage() {
     })
   }, [activeTabId])
 
-  // Persist tabs + active tab
-  useEffect(() => { localStorage.setItem(TABS_KEY, JSON.stringify(tabs)) }, [tabs])
+  // Auto-save changed tabs to backend (debounced 1s)
+  useEffect(() => {
+    if (!tabsLoaded) return
+    for (const tab of tabs) {
+      clearTimeout(saveTimers.current[tab.id])
+      saveTimers.current[tab.id] = setTimeout(() => {
+        qApi.writeScript(tab.name, tab.code).catch(() => {})
+      }, 1000)
+    }
+  }, [tabs, tabsLoaded])
+
   useEffect(() => { localStorage.setItem(ACTIVE_TAB_KEY, activeTabId) }, [activeTabId])
 
   // Focus rename input when it appears
@@ -213,9 +208,17 @@ export default function QueryPage() {
 
   const commitRename = useCallback(() => {
     const name = renameValue.trim()
-    if (name) setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
+    if (name) {
+      const old = tabs.find(t => t.id === renamingTabId)
+      setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
+      if (old && old.name !== name) {
+        // Write under new name, clear old name with empty content
+        qApi.writeScript(name, old.code).catch(() => {})
+        qApi.writeScript(old.name, '').catch(() => {})
+      }
+    }
     setRenamingTabId(null)
-  }, [renameValue, renamingTabId])
+  }, [renameValue, renamingTabId, tabs])
 
   // Connect directly to a process and call .proc.ui.init[] on it (once per proc)
   const ensureDirectConnection = useCallback(async (proc: string): Promise<DirectConnection> => {
@@ -257,71 +260,85 @@ export default function QueryPage() {
     setProcConnStatus('idle')
   }, [activeStack, selectedProc])
 
-  const runQuery = useCallback(async (targetPage = page) => {
+  const runQuery = useCallback(async (targetStart = pageStart, codeOverride?: string) => {
     if (!activeTab || running) return
-    const code = activeTab.code.trim()
+    const code = (codeOverride ?? activeTab.code).trim()
     if (!code) return
 
     setRunning(true)
-    setError(null)
-    setResult(null)
-    setRawOutput('')
+    setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null } }))
 
     try {
       if (connType !== 'q') {
         throw new Error('Query page requires a q (WebSocket) connection')
       }
 
-      let cmd = code
-      if (pagingEnabled) {
-        const offset = (targetPage - 1) * pageSize
-        cmd = offset === 0
-          ? `select[${pageSize}]from (${cmd})`
-          : `select[${offset} ${pageSize}]from (${cmd})`
-      }
-
-      const format = useQs ? 'text' : 'data'
+      const cmd = code
+      const pagestart = codeOverride ? 0 : targetStart
+      const pagesize  = codeOverride ? 100 : pageSize
 
       if (!selectedProc || selectedProc === 'hub') {
-        // Hub: use existing JSON WebSocket protocol
-        const hubCmd = useQs ? `.Q.s[${cmd}]` : cmd
-        const res = await qApi.runQuery(hubCmd)
-        if (useQs || typeof res === 'string') {
-          setRawOutput(String(res)); setOutputTab('terminal'); setResult(null)
-        } else {
-          setResult(res); setRawOutput(JSON.stringify(res, null, 2)); setOutputTab('output')
-        }
+        // Hub: always use .Q.s text format
+        const res = await qApi.runQuery(`.Q.s[${cmd}]`)
+        setRawOutput(String(res), null); setOutputTab('results')
       } else {
-        // Direct process connection using qdirect binary protocol
+        // Direct process: .Q.s text format
         const conn = await ensureDirectConnection(selectedProc)
-        const res = await conn.query(cmd, format)
-        if (res.format === 'text' || typeof res.result === 'string') {
-          setRawOutput(String(res.result)); setOutputTab('terminal'); setResult(null)
-        } else {
-          setResult(res.result); setRawOutput(JSON.stringify(res.result, null, 2)); setOutputTab('output')
-        }
+        const textRes = await conn.query(cmd, 'text', pagestart, pagesize, 30000)
+        setRawOutput(String(textRes.result ?? ''), textRes.count ?? null)
+        setOutputTab('results')
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
       setRawOutput(msg)
-      setOutputTab('terminal')
+      setOutputTab('results')
       setProcConnStatus('error')
+      // Only disconnect and clear init if it's a connection error (not a query timeout)
+      if (selectedProc && selectedProc !== 'hub' && !msg.includes('timed out')) {
+        initializedProcs.current.delete(`${activeStack}.${selectedProc}`)
+        directRef.current?.disconnect()
+        directRef.current = null
+      }
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, page, pageSize, pagingEnabled, useQs, selectedProc, ensureDirectConnection])
+  }, [activeTab, running, connType, pageStart, pageSize, selectedProc, procKey, ensureDirectConnection])
 
-  const goToPage = useCallback((next: number) => {
-    if (next < 1) return
-    setPage(next)
-    runQuery(next)
+  const goToOffset = useCallback((next: number) => {
+    const offset = Math.max(0, next)
+    setPageStart(offset)
+    setPageStartInput(String(offset))
+    runQuery(offset)
   }, [runQuery])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isMac = e.metaKey
+    const isWin = e.ctrlKey
+
+    // ⌘/Ctrl+E — run selection if any, otherwise run whole script
+    if ((isMac || isWin) && e.key === 'e') {
       e.preventDefault()
-      runQuery()
+      const ta = e.currentTarget
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim()
+      if (sel && !sel.startsWith('/')) {
+        runQuery(pageStart, sel)
+      } else {
+        runQuery()
+      }
+      return
+    }
+
+    // ⌘/Ctrl+Enter — run current line (skip comments)
+    if ((isMac || isWin) && e.key === 'Enter') {
+      e.preventDefault()
+      const ta = e.currentTarget
+      const pos = ta.selectionStart
+      const text = ta.value
+      const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+      const lineEnd = text.indexOf('\n', pos)
+      const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
+      if (line && !line.startsWith('/')) runQuery(1, line)
     }
   }, [runQuery])
 
@@ -387,17 +404,6 @@ export default function QueryPage() {
           </button>
         </div>
 
-        {/* .Q.s toggle */}
-        <button
-          onClick={() => setUseQs(v => !v)}
-          title="Wrap result in .Q.s[] — displays kdb+ formatted text output"
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors shrink-0 border
-            ${useQs
-              ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
-              : 'border-[var(--border)] text-[var(--text-dimmed)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-          .Q.s
-        </button>
-
         {/* Run button */}
         <button
           onClick={() => runQuery()}
@@ -406,7 +412,7 @@ export default function QueryPage() {
           <Play size={12} />
           {running ? 'Running…' : 'Run'}
         </button>
-        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵</span>
+        <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵ line · ⌘E sel/all</span>
         {selectedProc && selectedProc !== 'hub' && (
           <span className={`text-xs shrink-0 ${
             procConnStatus === 'connected' ? 'text-emerald-400' :
@@ -497,7 +503,7 @@ export default function QueryPage() {
 
         {/* Output tabs + paging controls */}
         <div className="flex items-center gap-1 px-3 border-b border-[var(--border)] shrink-0">
-          {(['output', 'terminal', 'logs'] as const).map(t => (
+          {(['results', 'logs'] as const).map(t => (
             <button
               key={t}
               onClick={() => setOutputTab(t)}
@@ -509,57 +515,51 @@ export default function QueryPage() {
             </button>
           ))}
 
-          <div className="flex items-center gap-2 ml-auto">
-            {/* Paging toggle */}
+          {(!selectedProc || selectedProc === 'hub') ? <div className="ml-auto" /> : null}
+          {selectedProc && selectedProc !== 'hub' && <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[var(--text-faint)] text-xs">offset</span>
+            <input
+              type="number" min={0} value={pageStartInput}
+              disabled={!rawOutput}
+              onChange={e => setPageStartInput(e.target.value)}
+              onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStart(v); setPageStartInput(String(v)) }}
+              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0); setPageStart(v); setPageStartInput(String(v)); runQuery(v) } }}
+              className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center disabled:opacity-30"
+            />
+            <span className="text-[var(--text-faint)] text-xs">size</span>
+            <input
+              type="number" min={1} max={10000} value={pageSizeInput}
+              onChange={e => setPageSizeInput(e.target.value)}
+              onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') }}
+              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(1, parseInt((e.target as HTMLInputElement).value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') } }}
+              className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
+            />
             <button
-              onClick={() => { setPagingEnabled(v => !v); setPage(1) }}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors border
-                ${pagingEnabled
-                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
-                  : 'border-[var(--border)] text-[var(--text-faint)] hover:text-[var(--text-dimmed)]'}`}>
-              paging
+              onClick={() => goToOffset(pageStart - pageSize)}
+              disabled={pageStart === 0 || running || (!rawOutput)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              ◀ Prev
             </button>
-
-            {pagingEnabled && (
-              <>
-                <span className="text-[var(--text-faint)] text-xs">rows</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={10000}
-                  value={pageSize}
-                  onChange={e => { const v = Math.max(1, parseInt(e.target.value) || 50); setPageSize(v); setPage(1) }}
-                  className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
-                />
-                <button
-                  onClick={() => goToPage(page - 1)}
-                  disabled={page <= 1 || running}
-                  className="px-1.5 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
-                  ◀
-                </button>
-                <span className="text-xs text-[var(--text-secondary)] min-w-[3rem] text-center">p.{page}</span>
-                <button
-                  onClick={() => goToPage(page + 1)}
-                  disabled={running}
-                  className="px-1.5 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
-                  ▶
-                </button>
-              </>
-            )}
-          </div>
+            <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
+              rows {pageStart}–{pageStart + pageSize}{totalCount !== null ? ` of ${totalCount}` : ''}
+            </span>
+            <button
+              onClick={() => goToOffset(pageStart + pageSize)}
+              disabled={running || (!rawOutput)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              Next ▶
+            </button>
+          </div>}
         </div>
 
         {/* Output content */}
         <div className="flex-1 overflow-auto">
-          {outputTab === 'output' && (
+          {outputTab === 'results' && (
             error
-              ? <p className="text-xs text-red-400 p-3 font-mono">{error}</p>
-              : result !== null
-                ? <ResultTable data={result} />
+              ? <pre className="text-xs text-red-400 p-3 font-mono whitespace-pre-wrap">{error}</pre>
+              : rawOutput
+                ? <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput}</pre>
                 : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
-          )}
-          {outputTab === 'terminal' && (
-            <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput || '—'}</pre>
           )}
           {outputTab === 'logs' && (
             <LogsPanel height={outputHeight - 40} />
