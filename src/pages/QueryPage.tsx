@@ -165,6 +165,7 @@ export default function QueryPage() {
       if (next.length === 0) {
         const t = newTab()
         setActiveTabId(t.id)
+        if (tabsLoaded) scheduleTabSave(t)
         return [t]
       }
       if (id === activeTabId) {
@@ -172,7 +173,7 @@ export default function QueryPage() {
       }
       return next
     })
-  }, [activeTabId, tabsLoaded])
+  }, [activeTabId, tabsLoaded, scheduleTabSave])
 
   // Load scripts from backend on connect
   useEffect(() => {
