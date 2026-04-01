@@ -300,6 +300,10 @@ export async function writeScript(name: string, code: string): Promise<void> {
   await query(`writescript["${name}";${linesQ}]`, 5000)
 }
 
+export async function deleteScript(name: string): Promise<void> {
+  await query(`deletescript["${name}"]`, 5000).catch(() => {})
+}
+
 // ─── Process control ──────────────────────────────────────────────────────────
 
 export async function startProcess(stack: string, proc: string): Promise<void> {

@@ -78,29 +78,9 @@ export default function QueryPage() {
 
   const [tabs, setTabs] = useState<QueryTab[]>(DEFAULT_TABS)
   const [tabsLoaded, setTabsLoaded] = useState(false)
+  const [activeTabId, setActiveTabId] = useState<string>('1')
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
-  // Load scripts from backend on connect
-  useEffect(() => {
-    if (!connected || tabsLoaded) return
-    qApi.readScripts().then(async names => {
-      if (!names || names.length === 0) return
-      const loaded = await Promise.all(
-        names.map(async (name, i): Promise<QueryTab> => {
-          const code = await qApi.readScript(name).catch(() => '')
-          return { id: String(i + 1), name, code }
-        })
-      )
-      if (loaded.length > 0) {
-        setTabs(loaded)
-        _tabId = loaded.length
-      }
-      setTabsLoaded(true)
-    }).catch(() => setTabsLoaded(true))
-  }, [connected, tabsLoaded])
-  const [activeTabId, setActiveTabId] = useState<string>(() =>
-    localStorage.getItem(ACTIVE_TAB_KEY) ?? '1'
-  )
   const [selectedProc, setSelectedProc] = useState<string | null>('hub')
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
   const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null }>>({})
@@ -146,23 +126,46 @@ export default function QueryPage() {
     }
   }, [activeStack, stackProcs.length])
 
+  // Auto-save a tab to backend (debounced 1s)
+  const scheduleTabSave = useCallback((tab: QueryTab) => {
+    clearTimeout(saveTimers.current[tab.id])
+    saveTimers.current[tab.id] = setTimeout(() => {
+      qApi.writeScript(tab.name, tab.code).catch(() => {})
+    }, 1000)
+  }, [])
+
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
+
   const updateCode = useCallback((code: string) => {
-    setTabs(ts => ts.map(t => t.id === activeTabId ? { ...t, code } : t))
-  }, [activeTabId])
+    const id = activeTabIdRef.current
+    setTabs(ts => {
+      const next = ts.map(t => t.id === id ? { ...t, code } : t)
+      if (tabsLoaded) {
+        const tab = next.find(t => t.id === id)
+        if (tab) scheduleTabSave(tab)
+      }
+      return next
+    })
+  }, [tabsLoaded, scheduleTabSave])
 
   const addTab = useCallback(() => {
     const t = newTab()
     setTabs(ts => [...ts, t])
     setActiveTabId(t.id)
-  }, [])
+    if (tabsLoaded) scheduleTabSave(t)
+  }, [tabsLoaded, scheduleTabSave])
 
   const closeTab = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setTabs(ts => {
+      const closing = ts.find(t => t.id === id)
+      if (closing && tabsLoaded) qApi.deleteScript(closing.name).catch(() => {})
       const next = ts.filter(t => t.id !== id)
       if (next.length === 0) {
         const t = newTab()
         setActiveTabId(t.id)
+        if (tabsLoaded) scheduleTabSave(t)
         return [t]
       }
       if (id === activeTabId) {
@@ -170,20 +173,34 @@ export default function QueryPage() {
       }
       return next
     })
-  }, [activeTabId])
+  }, [activeTabId, tabsLoaded, scheduleTabSave])
 
-  // Auto-save changed tabs to backend (debounced 1s)
+  // Load scripts from backend on connect
   useEffect(() => {
-    if (!tabsLoaded) return
-    for (const tab of tabs) {
-      clearTimeout(saveTimers.current[tab.id])
-      saveTimers.current[tab.id] = setTimeout(() => {
-        qApi.writeScript(tab.name, tab.code).catch(() => {})
-      }, 1000)
-    }
-  }, [tabs, tabsLoaded])
+    if (!connected || tabsLoaded) return
+    qApi.readScripts().then(async names => {
+      if (Array.isArray(names) && names.length > 0) {
+        const loaded = await Promise.all(
+          names.map(async (name, i): Promise<QueryTab> => {
+            const code = await qApi.readScript(name).catch(() => '')
+            return { id: String(i + 1), name, code }
+          })
+        )
+        setTabs(loaded)
+        _tabId = loaded.length
+        // Restore last active tab by name
+        const savedName = localStorage.getItem(ACTIVE_TAB_KEY)
+        const match = loaded.find(t => t.name === savedName) ?? loaded[0]
+        setActiveTabId(match.id)
+      }
+      setTabsLoaded(true)
+    }).catch(() => setTabsLoaded(true))
+  }, [connected, tabsLoaded])
 
-  useEffect(() => { localStorage.setItem(ACTIVE_TAB_KEY, activeTabId) }, [activeTabId])
+  useEffect(() => {
+    const tab = tabs.find(t => t.id === activeTabId)
+    if (tab) localStorage.setItem(ACTIVE_TAB_KEY, tab.name)
+  }, [activeTabId, tabs])
 
   // Focus rename input when it appears
   useEffect(() => {
@@ -212,9 +229,8 @@ export default function QueryPage() {
       const old = tabs.find(t => t.id === renamingTabId)
       setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
       if (old && old.name !== name) {
-        // Write under new name, clear old name with empty content
         qApi.writeScript(name, old.code).catch(() => {})
-        qApi.writeScript(old.name, '').catch(() => {})
+        qApi.deleteScript(old.name).catch(() => {})
       }
     }
     setRenamingTabId(null)
