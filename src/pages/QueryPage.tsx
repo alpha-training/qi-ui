@@ -159,6 +159,8 @@ export default function QueryPage() {
   const closeTab = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setTabs(ts => {
+      const closing = ts.find(t => t.id === id)
+      if (closing && tabsLoaded) qApi.deleteScript(closing.name).catch(() => {})
       const next = ts.filter(t => t.id !== id)
       if (next.length === 0) {
         const t = newTab()
@@ -170,7 +172,7 @@ export default function QueryPage() {
       }
       return next
     })
-  }, [activeTabId])
+  }, [activeTabId, tabsLoaded])
 
   // Load scripts from backend on connect
   useEffect(() => {
@@ -226,9 +228,8 @@ export default function QueryPage() {
       const old = tabs.find(t => t.id === renamingTabId)
       setTabs(ts => ts.map(t => t.id === renamingTabId ? { ...t, name } : t))
       if (old && old.name !== name) {
-        // Write under new name, clear old name with empty content
         qApi.writeScript(name, old.code).catch(() => {})
-        qApi.writeScript(old.name, '').catch(() => {})
+        qApi.deleteScript(old.name).catch(() => {})
       }
     }
     setRenamingTabId(null)
