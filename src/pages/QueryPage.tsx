@@ -64,6 +64,7 @@ const DEFAULT_TABS: QueryTab[] = [
 ]
 
 const ACTIVE_TAB_KEY = 'qi_query_active_tab'
+const ACTIVE_PROC_KEY = 'qi_query_active_proc'
 
 let _tabId = 3
 function newTab(name?: string): QueryTab {
@@ -82,7 +83,7 @@ export default function QueryPage() {
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [selectedProc, setSelectedProc] = useState<string | null>('hub')
+  const [selectedProc, setSelectedProc] = useState<string | null>(() => localStorage.getItem(ACTIVE_PROC_KEY) ?? 'hub')
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
   const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null; hasRun: boolean }>>({})
   const procKey = `${activeStack}.${selectedProc ?? 'hub'}`
@@ -127,7 +128,10 @@ export default function QueryPage() {
   // Auto-select first process when stack changes (only if current selection not in list)
   useEffect(() => {
     if (stackProcs.length > 0 && selectedProc && !stackProcs.includes(selectedProc)) {
-      setSelectedProc(stackProcs[0])
+      const saved = localStorage.getItem(ACTIVE_PROC_KEY)
+      const fallback = (saved && stackProcs.includes(saved)) ? saved : stackProcs[0]
+      setSelectedProc(fallback)
+      localStorage.setItem(ACTIVE_PROC_KEY, fallback)
     }
   }, [activeStack, stackProcs.length])
 
@@ -283,7 +287,12 @@ export default function QueryPage() {
     setProcConnStatus('idle')
   }, [activeStack, selectedProc])
 
-  const runQuery = useCallback(async (targetStart = pageStart, codeOverride?: string) => {
+  const resetPaging = useCallback(() => {
+    setPageStart(0); setPageStartInput('0'); pageStartRef.current = 0
+    setPageSize(100); setPageSizeInput('100'); pageSizeRef.current = 100
+  }, [])
+
+  const runQuery = useCallback(async (targetStart = 0, codeOverride?: string) => {
     if (!activeTab || running) return
     const code = (codeOverride ?? activeTab.code).trim()
     if (!code) return
@@ -308,7 +317,11 @@ export default function QueryPage() {
         // Direct process: .Q.s text format
         const conn = await ensureDirectConnection(selectedProc)
         const textRes = await conn.query(cmd, 'text', pagestart, pagesize, 30000)
-        setRawOutput(String(textRes.result ?? ''), textRes.count ?? null)
+        const total = textRes.count ?? null
+        setRawOutput(String(textRes.result ?? ''), total)
+        if (total !== null && total > 0 && total < pageSizeRef.current) {
+          setPageSize(total); setPageSizeInput(String(total)); pageSizeRef.current = total
+        }
         setOutputTab('results')
       }
     } catch (e) {
@@ -333,6 +346,7 @@ export default function QueryPage() {
     const offset = Math.max(0, next)
     setPageStart(offset)
     setPageStartInput(String(offset))
+    pageStartRef.current = offset
     runQuery(offset)
   }, [runQuery])
 
@@ -346,9 +360,9 @@ export default function QueryPage() {
       const ta = e.currentTarget
       const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim()
       if (sel && !sel.startsWith('/')) {
-        runQuery(pageStart, sel)
+        resetPaging(); runQuery(0, sel)
       } else {
-        runQuery()
+        resetPaging(); runQuery(0)
       }
       return
     }
@@ -362,9 +376,9 @@ export default function QueryPage() {
       const lineStart = text.lastIndexOf('\n', pos - 1) + 1
       const lineEnd = text.indexOf('\n', pos)
       const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
-      if (line && !line.startsWith('/')) runQuery(1, line)
+      if (line && !line.startsWith('/')) { resetPaging(); runQuery(0, line) }
     }
-  }, [runQuery])
+  }, [runQuery, resetPaging])
 
   const handleOutputResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -430,7 +444,7 @@ export default function QueryPage() {
 
         {/* Run button */}
         <button
-          onClick={() => runQuery()}
+          onClick={() => { resetPaging(); runQuery(0) }}
           disabled={running || !activeTab?.code.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
           <Play size={12} />
@@ -439,7 +453,7 @@ export default function QueryPage() {
         <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵ line · ⌘E sel/all</span>
         {selectedProc && selectedProc !== 'hub' && (
           <span className={`text-xs shrink-0 ${
-            procConnStatus === 'connected' ? 'text-emerald-400' :
+            procConnStatus === 'connected' ? 'text-green-400' :
             procConnStatus === 'connecting' ? 'text-yellow-400' :
             procConnStatus === 'error' ? 'text-red-400' : 'text-[var(--text-faint)]'
           }`}>
@@ -502,12 +516,12 @@ export default function QueryPage() {
               return (
                 <button
                   key={proc}
-                  onClick={() => setSelectedProc(proc)}
+                  onClick={() => { setSelectedProc(proc); localStorage.setItem(ACTIVE_PROC_KEY, proc) }}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors
                     ${isSelected
                       ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)]'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUp ? 'bg-emerald-400' : 'bg-red-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUp ? 'bg-green-400' : 'bg-red-500'}`} />
                   <span className="truncate font-mono">{proc}</span>
                 </button>
               )
@@ -582,7 +596,7 @@ export default function QueryPage() {
                 setPageStart(0); setPageStartInput('0')
                 pageStartRef.current = 0
                 if (pagingTimer.current) clearTimeout(pagingTimer.current)
-                pagingTimer.current = setTimeout(() => runQueryRef.current(0), 600)
+                pagingTimer.current = setTimeout(() => { resetPaging(); runQueryRef.current(0) }, 600)
               }}
               onBlur={e => {
                 const parsed = parseInt(e.target.value) || 100
@@ -595,16 +609,18 @@ export default function QueryPage() {
             <button
               onClick={() => goToOffset(pageStart - pageSize)}
               disabled={pageStart === 0 || running || (!rawOutput)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              className="flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                border-[var(--border-btn)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-btn-hover)] hover:bg-[var(--bg-hover-md)]">
               ◀ Prev
             </button>
             <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
-              rows {pageStart}–{pageStart + pageSize}{totalCount !== null ? ` of ${totalCount}` : ''}
+              rows {pageStart}–{totalCount !== null ? Math.min(pageStart + pageSize, totalCount) : pageStart + pageSize}{totalCount !== null ? ` of ${totalCount}` : ''}
             </span>
             <button
               onClick={() => goToOffset(pageStart + pageSize)}
-              disabled={running || (!rawOutput)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              disabled={running || (!rawOutput) || (totalCount !== null && pageStart + pageSize >= totalCount)}
+              className="flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                border-[var(--border-btn)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-btn-hover)] hover:bg-[var(--bg-hover-md)]">
               Next ▶
             </button>
           </div>}
@@ -618,7 +634,7 @@ export default function QueryPage() {
               : rawOutput
                 ? <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput}</pre>
                 : hasRun
-                  ? <p className="text-xs text-emerald-400 p-3">Success!</p>
+                  ? <p className="text-xs text-green-400 p-3">Success!</p>
                   : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
           )}
           {outputTab === 'logs' && (
