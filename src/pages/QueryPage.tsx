@@ -64,6 +64,7 @@ const DEFAULT_TABS: QueryTab[] = [
 ]
 
 const ACTIVE_TAB_KEY = 'qi_query_active_tab'
+const ACTIVE_PROC_KEY = 'qi_query_active_proc'
 
 let _tabId = 3
 function newTab(name?: string): QueryTab {
@@ -80,26 +81,31 @@ export default function QueryPage() {
   const [tabsLoaded, setTabsLoaded] = useState(false)
   const [activeTabId, setActiveTabId] = useState<string>('1')
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [selectedProc, setSelectedProc] = useState<string | null>('hub')
+  const [selectedProc, setSelectedProc] = useState<string | null>(() => localStorage.getItem(ACTIVE_PROC_KEY) ?? 'hub')
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
-  const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null }>>({})
+  const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null; hasRun: boolean }>>({})
   const procKey = `${activeStack}.${selectedProc ?? 'hub'}`
   const rawOutput = outputMap[procKey]?.raw ?? ''
   const error = outputMap[procKey]?.error ?? null
   const totalCount = outputMap[procKey]?.total ?? null
 
+  const hasRun = outputMap[procKey]?.hasRun ?? false
+
   const setRawOutput = useCallback((raw: string, total?: number | null) => {
-    setOutputMap(m => ({ ...m, [procKey]: { raw, error: null, total: total ?? m[procKey]?.total ?? null } }))
+    setOutputMap(m => ({ ...m, [procKey]: { raw, error: null, total: total ?? m[procKey]?.total ?? null, hasRun: true } }))
   }, [procKey])
   const setError = useCallback((err: string | null) => {
-    setOutputMap(m => ({ ...m, [procKey]: { raw: m[procKey]?.raw ?? '', error: err, total: m[procKey]?.total ?? null } }))
+    setOutputMap(m => ({ ...m, [procKey]: { raw: m[procKey]?.raw ?? '', error: err, total: m[procKey]?.total ?? null, hasRun: true } }))
   }, [procKey])
   const [running, setRunning] = useState(false)
   const [pageSize, setPageSize] = useState(100)
   const [pageSizeInput, setPageSizeInput] = useState('100')
   const [pageStart, setPageStart] = useState(0)
   const [pageStartInput, setPageStartInput] = useState('0')
+  const pageSizeRef = useRef(100)
+  const pageStartRef = useRef(0)
   const [outputHeight, setOutputHeight] = useState(() => parseInt(localStorage.getItem('qi_query_output_height') ?? '240'))
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false)
   const [menuTabId, setMenuTabId] = useState<string | null>(null)
@@ -122,7 +128,10 @@ export default function QueryPage() {
   // Auto-select first process when stack changes (only if current selection not in list)
   useEffect(() => {
     if (stackProcs.length > 0 && selectedProc && !stackProcs.includes(selectedProc)) {
-      setSelectedProc(stackProcs[0])
+      const saved = localStorage.getItem(ACTIVE_PROC_KEY)
+      const fallback = (saved && stackProcs.includes(saved)) ? saved : stackProcs[0]
+      setSelectedProc(fallback)
+      localStorage.setItem(ACTIVE_PROC_KEY, fallback)
     }
   }, [activeStack, stackProcs.length])
 
@@ -136,6 +145,8 @@ export default function QueryPage() {
 
   const activeTabIdRef = useRef(activeTabId)
   activeTabIdRef.current = activeTabId
+
+  const runQueryRef = useRef<(targetStart?: number, codeOverride?: string) => void>(() => {})
 
   const updateCode = useCallback((code: string) => {
     const id = activeTabIdRef.current
@@ -276,13 +287,18 @@ export default function QueryPage() {
     setProcConnStatus('idle')
   }, [activeStack, selectedProc])
 
-  const runQuery = useCallback(async (targetStart = pageStart, codeOverride?: string) => {
+  const resetPaging = useCallback(() => {
+    setPageStart(0); setPageStartInput('0'); pageStartRef.current = 0
+    setPageSize(100); setPageSizeInput('100'); pageSizeRef.current = 100
+  }, [])
+
+  const runQuery = useCallback(async (targetStart = 0, codeOverride?: string) => {
     if (!activeTab || running) return
     const code = (codeOverride ?? activeTab.code).trim()
     if (!code) return
 
     setRunning(true)
-    setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null } }))
+    setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null, hasRun: false } }))
 
     try {
       if (connType !== 'q') {
@@ -291,7 +307,7 @@ export default function QueryPage() {
 
       const cmd = code
       const pagestart = codeOverride ? 0 : targetStart
-      const pagesize  = codeOverride ? 100 : pageSize
+      const pagesize  = codeOverride ? 100 : pageSizeRef.current
 
       if (!selectedProc || selectedProc === 'hub') {
         // Hub: always use .Q.s text format
@@ -301,7 +317,11 @@ export default function QueryPage() {
         // Direct process: .Q.s text format
         const conn = await ensureDirectConnection(selectedProc)
         const textRes = await conn.query(cmd, 'text', pagestart, pagesize, 30000)
-        setRawOutput(String(textRes.result ?? ''), textRes.count ?? null)
+        const total = textRes.count ?? null
+        setRawOutput(String(textRes.result ?? ''), total)
+        if (total !== null && total > 0 && total < pageSizeRef.current) {
+          setPageSize(total); setPageSizeInput(String(total)); pageSizeRef.current = total
+        }
         setOutputTab('results')
       }
     } catch (e) {
@@ -319,12 +339,14 @@ export default function QueryPage() {
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, pageStart, pageSize, selectedProc, procKey, ensureDirectConnection])
+  }, [activeTab, running, connType, pageStart, selectedProc, procKey, ensureDirectConnection])
+  runQueryRef.current = runQuery
 
   const goToOffset = useCallback((next: number) => {
     const offset = Math.max(0, next)
     setPageStart(offset)
     setPageStartInput(String(offset))
+    pageStartRef.current = offset
     runQuery(offset)
   }, [runQuery])
 
@@ -338,9 +360,9 @@ export default function QueryPage() {
       const ta = e.currentTarget
       const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim()
       if (sel && !sel.startsWith('/')) {
-        runQuery(pageStart, sel)
+        resetPaging(); runQuery(0, sel)
       } else {
-        runQuery()
+        resetPaging(); runQuery(0)
       }
       return
     }
@@ -354,9 +376,9 @@ export default function QueryPage() {
       const lineStart = text.lastIndexOf('\n', pos - 1) + 1
       const lineEnd = text.indexOf('\n', pos)
       const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim()
-      if (line && !line.startsWith('/')) runQuery(1, line)
+      if (line && !line.startsWith('/')) { resetPaging(); runQuery(0, line) }
     }
-  }, [runQuery])
+  }, [runQuery, resetPaging])
 
   const handleOutputResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -422,7 +444,7 @@ export default function QueryPage() {
 
         {/* Run button */}
         <button
-          onClick={() => runQuery()}
+          onClick={() => { resetPaging(); runQuery(0) }}
           disabled={running || !activeTab?.code.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
           <Play size={12} />
@@ -431,7 +453,7 @@ export default function QueryPage() {
         <span className="text-[var(--text-faint)] text-xs shrink-0">⌘↵ line · ⌘E sel/all</span>
         {selectedProc && selectedProc !== 'hub' && (
           <span className={`text-xs shrink-0 ${
-            procConnStatus === 'connected' ? 'text-emerald-400' :
+            procConnStatus === 'connected' ? 'text-green-400' :
             procConnStatus === 'connecting' ? 'text-yellow-400' :
             procConnStatus === 'error' ? 'text-red-400' : 'text-[var(--text-faint)]'
           }`}>
@@ -494,12 +516,12 @@ export default function QueryPage() {
               return (
                 <button
                   key={proc}
-                  onClick={() => setSelectedProc(proc)}
+                  onClick={() => { setSelectedProc(proc); localStorage.setItem(ACTIVE_PROC_KEY, proc) }}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors
                     ${isSelected
                       ? 'bg-[var(--bg-tab-active)] text-[var(--text-primary)]'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover-md)]'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUp ? 'bg-emerald-400' : 'bg-red-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUp ? 'bg-green-400' : 'bg-red-500'}`} />
                   <span className="truncate font-mono">{proc}</span>
                 </button>
               )
@@ -535,34 +557,70 @@ export default function QueryPage() {
           {selectedProc && selectedProc !== 'hub' && <div className="flex items-center gap-2 ml-auto">
             <span className="text-[var(--text-faint)] text-xs">offset</span>
             <input
-              type="number" min={0} value={pageStartInput}
+              type="number" min={0} max={totalCount !== null ? Math.max(0, totalCount - 1) : undefined}
+              value={pageStartInput}
               disabled={!rawOutput}
-              onChange={e => setPageStartInput(e.target.value)}
-              onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStart(v); setPageStartInput(String(v)) }}
-              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0); setPageStart(v); setPageStartInput(String(v)); runQuery(v) } }}
+              onChange={e => {
+                const raw = e.target.value
+                setPageStartInput(raw)
+                const parsed = parseInt(raw)
+                if (isNaN(parsed)) return
+                const maxOffset = totalCount !== null ? Math.max(0, totalCount - 1) : Infinity
+                const v = Math.min(Math.max(0, parsed), maxOffset)
+                setPageStart(v)
+                pageStartRef.current = v
+                if (pagingTimer.current) clearTimeout(pagingTimer.current)
+                pagingTimer.current = setTimeout(() => runQueryRef.current(v), 600)
+              }}
+              onBlur={e => {
+                const parsed = parseInt(e.target.value) || 0
+                const maxOffset = totalCount !== null ? Math.max(0, totalCount - 1) : Infinity
+                const v = Math.min(Math.max(0, parsed), maxOffset)
+                setPageStart(v); setPageStartInput(String(v)); pageStartRef.current = v
+              }}
               className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center disabled:opacity-30"
             />
             <span className="text-[var(--text-faint)] text-xs">size</span>
             <input
-              type="number" min={1} max={10000} value={pageSizeInput}
-              onChange={e => setPageSizeInput(e.target.value)}
-              onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') }}
-              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(1, parseInt((e.target as HTMLInputElement).value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') } }}
+              type="number" min={1} max={totalCount ?? undefined}
+              value={pageSizeInput}
+              onChange={e => {
+                const raw = e.target.value
+                setPageSizeInput(raw)
+                const parsed = parseInt(raw)
+                if (isNaN(parsed)) return
+                const maxSize = totalCount !== null ? totalCount : Infinity
+                const v = Math.min(Math.max(1, parsed), maxSize)
+                setPageSize(v)
+                pageSizeRef.current = v
+                setPageStart(0); setPageStartInput('0')
+                pageStartRef.current = 0
+                if (pagingTimer.current) clearTimeout(pagingTimer.current)
+                pagingTimer.current = setTimeout(() => { resetPaging(); runQueryRef.current(0) }, 600)
+              }}
+              onBlur={e => {
+                const parsed = parseInt(e.target.value) || 100
+                const maxSize = totalCount !== null ? totalCount : Infinity
+                const v = Math.min(Math.max(1, parsed), maxSize)
+                setPageSize(v); setPageSizeInput(String(v)); pageSizeRef.current = v
+              }}
               className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
             />
             <button
               onClick={() => goToOffset(pageStart - pageSize)}
               disabled={pageStart === 0 || running || (!rawOutput)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              className="flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                border-[var(--border-btn)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-btn-hover)] hover:bg-[var(--bg-hover-md)]">
               ◀ Prev
             </button>
             <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
-              rows {pageStart}–{pageStart + pageSize}{totalCount !== null ? ` of ${totalCount}` : ''}
+              rows {pageStart}–{totalCount !== null ? Math.min(pageStart + pageSize, totalCount) : pageStart + pageSize}{totalCount !== null ? ` of ${totalCount}` : ''}
             </span>
             <button
               onClick={() => goToOffset(pageStart + pageSize)}
-              disabled={running || (!rawOutput)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[var(--text-dimmed)] hover:text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-hover-md)] transition-colors">
+              disabled={running || (!rawOutput) || (totalCount !== null && pageStart + pageSize >= totalCount)}
+              className="flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed
+                border-[var(--border-btn)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-btn-hover)] hover:bg-[var(--bg-hover-md)]">
               Next ▶
             </button>
           </div>}
@@ -575,7 +633,9 @@ export default function QueryPage() {
               ? <pre className="text-xs text-red-400 p-3 font-mono whitespace-pre-wrap">{error}</pre>
               : rawOutput
                 ? <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput}</pre>
-                : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
+                : hasRun
+                  ? <p className="text-xs text-green-400 p-3">Success!</p>
+                  : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
           )}
           {outputTab === 'logs' && (
             <LogsPanel height={outputHeight - 40} />
