@@ -80,20 +80,23 @@ export default function QueryPage() {
   const [tabsLoaded, setTabsLoaded] = useState(false)
   const [activeTabId, setActiveTabId] = useState<string>('1')
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [selectedProc, setSelectedProc] = useState<string | null>('hub')
   const [outputTab, setOutputTab] = useState<OutputTab>('results')
-  const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null }>>({})
+  const [outputMap, setOutputMap] = useState<Record<string, { raw: string; error: string | null; total: number | null; hasRun: boolean }>>({})
   const procKey = `${activeStack}.${selectedProc ?? 'hub'}`
   const rawOutput = outputMap[procKey]?.raw ?? ''
   const error = outputMap[procKey]?.error ?? null
   const totalCount = outputMap[procKey]?.total ?? null
 
+  const hasRun = outputMap[procKey]?.hasRun ?? false
+
   const setRawOutput = useCallback((raw: string, total?: number | null) => {
-    setOutputMap(m => ({ ...m, [procKey]: { raw, error: null, total: total ?? m[procKey]?.total ?? null } }))
+    setOutputMap(m => ({ ...m, [procKey]: { raw, error: null, total: total ?? m[procKey]?.total ?? null, hasRun: true } }))
   }, [procKey])
   const setError = useCallback((err: string | null) => {
-    setOutputMap(m => ({ ...m, [procKey]: { raw: m[procKey]?.raw ?? '', error: err, total: m[procKey]?.total ?? null } }))
+    setOutputMap(m => ({ ...m, [procKey]: { raw: m[procKey]?.raw ?? '', error: err, total: m[procKey]?.total ?? null, hasRun: true } }))
   }, [procKey])
   const [running, setRunning] = useState(false)
   const [pageSize, setPageSize] = useState(100)
@@ -282,7 +285,7 @@ export default function QueryPage() {
     if (!code) return
 
     setRunning(true)
-    setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null } }))
+    setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null, hasRun: false } }))
 
     try {
       if (connType !== 'q') {
@@ -537,17 +540,30 @@ export default function QueryPage() {
             <input
               type="number" min={0} value={pageStartInput}
               disabled={!rawOutput}
-              onChange={e => setPageStartInput(e.target.value)}
-              onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStart(v); setPageStartInput(String(v)) }}
-              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0); setPageStart(v); setPageStartInput(String(v)); runQuery(v) } }}
+              onChange={e => {
+                const raw = e.target.value
+                setPageStartInput(raw)
+                const v = Math.max(0, parseInt(raw) || 0)
+                setPageStart(v)
+                if (pagingTimer.current) clearTimeout(pagingTimer.current)
+                pagingTimer.current = setTimeout(() => runQuery(v), 600)
+              }}
+              onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStartInput(String(v)) }}
               className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center disabled:opacity-30"
             />
             <span className="text-[var(--text-faint)] text-xs">size</span>
             <input
               type="number" min={1} max={10000} value={pageSizeInput}
-              onChange={e => setPageSizeInput(e.target.value)}
-              onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') }}
-              onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(1, parseInt((e.target as HTMLInputElement).value) || 100); setPageSize(v); setPageSizeInput(String(v)); setPageStart(0); setPageStartInput('0') } }}
+              onChange={e => {
+                const raw = e.target.value
+                setPageSizeInput(raw)
+                const v = Math.max(1, parseInt(raw) || 100)
+                setPageSize(v)
+                setPageStart(0); setPageStartInput('0')
+                if (pagingTimer.current) clearTimeout(pagingTimer.current)
+                pagingTimer.current = setTimeout(() => runQuery(0), 600)
+              }}
+              onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 100); setPageSizeInput(String(v)) }}
               className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
             />
             <button
@@ -575,7 +591,9 @@ export default function QueryPage() {
               ? <pre className="text-xs text-red-400 p-3 font-mono whitespace-pre-wrap">{error}</pre>
               : rawOutput
                 ? <pre className="text-xs text-[var(--text-secondary)] p-3 font-mono whitespace-pre-wrap">{rawOutput}</pre>
-                : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
+                : hasRun
+                  ? <p className="text-xs text-emerald-400 p-3">Success!</p>
+                  : <p className="text-xs text-[var(--text-faint)] p-3">Run a query to see results</p>
           )}
           {outputTab === 'logs' && (
             <LogsPanel height={outputHeight - 40} />
