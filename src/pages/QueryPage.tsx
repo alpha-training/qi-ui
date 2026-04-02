@@ -103,6 +103,8 @@ export default function QueryPage() {
   const [pageSizeInput, setPageSizeInput] = useState('100')
   const [pageStart, setPageStart] = useState(0)
   const [pageStartInput, setPageStartInput] = useState('0')
+  const pageSizeRef = useRef(100)
+  const pageStartRef = useRef(0)
   const [outputHeight, setOutputHeight] = useState(() => parseInt(localStorage.getItem('qi_query_output_height') ?? '240'))
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false)
   const [menuTabId, setMenuTabId] = useState<string | null>(null)
@@ -139,6 +141,8 @@ export default function QueryPage() {
 
   const activeTabIdRef = useRef(activeTabId)
   activeTabIdRef.current = activeTabId
+
+  const runQueryRef = useRef<(targetStart?: number, codeOverride?: string) => void>(() => {})
 
   const updateCode = useCallback((code: string) => {
     const id = activeTabIdRef.current
@@ -294,7 +298,7 @@ export default function QueryPage() {
 
       const cmd = code
       const pagestart = codeOverride ? 0 : targetStart
-      const pagesize  = codeOverride ? 100 : pageSize
+      const pagesize  = codeOverride ? 100 : pageSizeRef.current
 
       if (!selectedProc || selectedProc === 'hub') {
         // Hub: always use .Q.s text format
@@ -322,7 +326,8 @@ export default function QueryPage() {
     } finally {
       setRunning(false)
     }
-  }, [activeTab, running, connType, pageStart, pageSize, selectedProc, procKey, ensureDirectConnection])
+  }, [activeTab, running, connType, pageStart, selectedProc, procKey, ensureDirectConnection])
+  runQueryRef.current = runQuery
 
   const goToOffset = useCallback((next: number) => {
     const offset = Math.max(0, next)
@@ -538,32 +543,53 @@ export default function QueryPage() {
           {selectedProc && selectedProc !== 'hub' && <div className="flex items-center gap-2 ml-auto">
             <span className="text-[var(--text-faint)] text-xs">offset</span>
             <input
-              type="number" min={0} value={pageStartInput}
+              type="number" min={0} max={totalCount !== null ? Math.max(0, totalCount - 1) : undefined}
+              value={pageStartInput}
               disabled={!rawOutput}
               onChange={e => {
                 const raw = e.target.value
                 setPageStartInput(raw)
-                const v = Math.max(0, parseInt(raw) || 0)
+                const parsed = parseInt(raw)
+                if (isNaN(parsed)) return
+                const maxOffset = totalCount !== null ? Math.max(0, totalCount - 1) : Infinity
+                const v = Math.min(Math.max(0, parsed), maxOffset)
                 setPageStart(v)
+                pageStartRef.current = v
                 if (pagingTimer.current) clearTimeout(pagingTimer.current)
-                pagingTimer.current = setTimeout(() => runQuery(v), 600)
+                pagingTimer.current = setTimeout(() => runQueryRef.current(v), 600)
               }}
-              onBlur={e => { const v = Math.max(0, parseInt(e.target.value) || 0); setPageStartInput(String(v)) }}
+              onBlur={e => {
+                const parsed = parseInt(e.target.value) || 0
+                const maxOffset = totalCount !== null ? Math.max(0, totalCount - 1) : Infinity
+                const v = Math.min(Math.max(0, parsed), maxOffset)
+                setPageStart(v); setPageStartInput(String(v)); pageStartRef.current = v
+              }}
               className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center disabled:opacity-30"
             />
             <span className="text-[var(--text-faint)] text-xs">size</span>
             <input
-              type="number" min={1} max={10000} value={pageSizeInput}
+              type="number" min={1} max={totalCount ?? undefined}
+              value={pageSizeInput}
               onChange={e => {
                 const raw = e.target.value
                 setPageSizeInput(raw)
-                const v = Math.max(1, parseInt(raw) || 100)
+                const parsed = parseInt(raw)
+                if (isNaN(parsed)) return
+                const maxSize = totalCount !== null ? totalCount : Infinity
+                const v = Math.min(Math.max(1, parsed), maxSize)
                 setPageSize(v)
+                pageSizeRef.current = v
                 setPageStart(0); setPageStartInput('0')
+                pageStartRef.current = 0
                 if (pagingTimer.current) clearTimeout(pagingTimer.current)
-                pagingTimer.current = setTimeout(() => runQuery(0), 600)
+                pagingTimer.current = setTimeout(() => runQueryRef.current(0), 600)
               }}
-              onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 100); setPageSizeInput(String(v)) }}
+              onBlur={e => {
+                const parsed = parseInt(e.target.value) || 100
+                const maxSize = totalCount !== null ? totalCount : Infinity
+                const v = Math.min(Math.max(1, parsed), maxSize)
+                setPageSize(v); setPageSizeInput(String(v)); pageSizeRef.current = v
+              }}
               className="w-14 bg-[var(--bg-input)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 text-center"
             />
             <button
