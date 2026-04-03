@@ -113,6 +113,7 @@ export default function QueryPage() {
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lineNumRef = useRef<HTMLDivElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const directRef = useRef<DirectConnection | null>(null)
   const initializedProcs = useRef<Set<string>>(new Set())
@@ -145,6 +146,10 @@ export default function QueryPage() {
 
   const activeTabIdRef = useRef(activeTabId)
   activeTabIdRef.current = activeTabId
+
+  const queryHistory = useRef<string[]>([])
+  const historyIndex = useRef<number>(-1)
+  const historyDraft = useRef<string>('')
 
   const runQueryRef = useRef<(targetStart?: number, codeOverride?: string) => void>(() => {})
 
@@ -280,11 +285,13 @@ export default function QueryPage() {
     return conn
   }, [stacks, activeStack, activeConn])
 
-  // Disconnect direct connection when stack/proc changes
+  // Disconnect direct connection and reset paging when stack/proc changes
   useEffect(() => {
     directRef.current?.disconnect()
     directRef.current = null
     setProcConnStatus('idle')
+    setPageSize(100); setPageSizeInput('100'); pageSizeRef.current = 100
+    setPageStart(0); setPageStartInput('0'); pageStartRef.current = 0
   }, [activeStack, selectedProc])
 
   const resetPaging = useCallback(() => {
@@ -296,6 +303,12 @@ export default function QueryPage() {
     if (!activeTab || running) return
     const code = (codeOverride ?? activeTab.code).trim()
     if (!code) return
+
+    // Push to history (avoid consecutive duplicates)
+    const last = queryHistory.current[queryHistory.current.length - 1]
+    if (code !== last) queryHistory.current.push(code)
+    historyIndex.current = -1
+    historyDraft.current = ''
 
     setRunning(true)
     setOutputMap(m => ({ ...m, [procKey]: { raw: '', error: null, total: null, hasRun: false } }))
@@ -322,6 +335,7 @@ export default function QueryPage() {
         if (total !== null && total > 0 && total < pageSizeRef.current) {
           setPageSize(total); setPageSizeInput(String(total)); pageSizeRef.current = total
         }
+        setProcConnStatus('connected')
         setOutputTab('results')
       }
     } catch (e) {
@@ -353,6 +367,36 @@ export default function QueryPage() {
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isMac = e.metaKey
     const isWin = e.ctrlKey
+
+    // Up/Down — navigate query history (only when single line or at top/bottom)
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const history = queryHistory.current
+      if (history.length === 0) return
+      const ta = e.currentTarget
+      // Only navigate if cursor is on the first or last line
+      const onFirstLine = !ta.value.slice(0, ta.selectionStart).includes('\n')
+      const onLastLine = !ta.value.slice(ta.selectionStart).includes('\n')
+      if (e.key === 'ArrowUp' && !onFirstLine) return
+      if (e.key === 'ArrowDown' && !onLastLine) return
+      e.preventDefault()
+      if (e.key === 'ArrowUp') {
+        if (historyIndex.current === -1) historyDraft.current = ta.value
+        const next = historyIndex.current === -1 ? history.length - 1 : Math.max(0, historyIndex.current - 1)
+        historyIndex.current = next
+        updateCode(history[next])
+      } else {
+        if (historyIndex.current === -1) return
+        const next = historyIndex.current + 1
+        if (next >= history.length) {
+          historyIndex.current = -1
+          updateCode(historyDraft.current)
+        } else {
+          historyIndex.current = next
+          updateCode(history[next])
+        }
+      }
+      return
+    }
 
     // ⌘/Ctrl+E — run selection if any, otherwise run whole script
     if ((isMac || isWin) && e.key === 'e') {
@@ -468,12 +512,25 @@ export default function QueryPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* Code editor */}
-        <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden relative">
+          {/* Line numbers */}
+          <div
+            ref={lineNumRef}
+            aria-hidden
+            className="select-none shrink-0 overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-faint)] font-mono text-xs text-right leading-relaxed pt-4 pb-4 pl-2 pr-2 border-r border-[var(--border)]"
+            style={{ minWidth: '2.5rem' }}>
+            {(activeTab?.code ?? '').split('\n').map((_, i) => (
+              <div key={i}>{i + 1}</div>
+            ))}
+            {/* padding line so last line number aligns with textarea */}
+            <div>&nbsp;</div>
+          </div>
           <textarea
             ref={textareaRef}
             value={activeTab?.code ?? ''}
             onChange={e => updateCode(e.target.value)}
             onKeyDown={handleKeyDown}
+            onScroll={e => { if (lineNumRef.current) lineNumRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop }}
             spellCheck={false}
             placeholder="/ enter kdb+ expression&#10;select from trade"
             className="flex-1 resize-none bg-[var(--bg-canvas)] text-[var(--text-primary)] font-mono text-xs p-4 focus:outline-none placeholder:text-[var(--text-faint)] leading-relaxed"
