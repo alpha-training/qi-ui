@@ -127,7 +127,7 @@ export default function QueryPage() {
 
   // Auto-select first process when stack changes (only if current selection not in list)
   useEffect(() => {
-    if (stackProcs.length > 0 && selectedProc && !stackProcs.includes(selectedProc)) {
+    if (stackProcs.length > 0 && selectedProc && selectedProc !== 'hub' && !stackProcs.includes(selectedProc)) {
       const saved = localStorage.getItem(ACTIVE_PROC_KEY)
       const fallback = (saved && stackProcs.includes(saved)) ? saved : stackProcs[0]
       setSelectedProc(fallback)
@@ -457,9 +457,9 @@ export default function QueryPage() {
             procConnStatus === 'connecting' ? 'text-yellow-400' :
             procConnStatus === 'error' ? 'text-red-400' : 'text-[var(--text-faint)]'
           }`}>
-            {procConnStatus === 'connected' ? '● direct' :
-             procConnStatus === 'connecting' ? '○ connecting…' :
-             procConnStatus === 'error' ? '● error' : '○ direct'}
+            {procConnStatus === 'connected' ? `● ${selectedProc}` :
+             procConnStatus === 'connecting' ? `○ ${selectedProc} connecting…` :
+             procConnStatus === 'error' ? `● ${selectedProc} error` : `○ ${selectedProc}`}
           </span>
         )}
       </div>
@@ -496,7 +496,7 @@ export default function QueryPage() {
                 {stackNames.map(name => (
                   <button
                     key={name}
-                    onClick={() => { setActiveStack(name); setSelectedProc(null); setStackDropdownOpen(false) }}
+                    onClick={() => { setActiveStack(name); setStackDropdownOpen(false) }}
                     className={`w-full text-left px-3 py-1.5 text-xs transition-colors hover:bg-[var(--bg-hover-md)]
                       ${name === activeStack ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'}`}>
                     {name}
@@ -596,7 +596,7 @@ export default function QueryPage() {
                 setPageStart(0); setPageStartInput('0')
                 pageStartRef.current = 0
                 if (pagingTimer.current) clearTimeout(pagingTimer.current)
-                pagingTimer.current = setTimeout(() => { resetPaging(); runQueryRef.current(0) }, 600)
+                pagingTimer.current = setTimeout(() => runQueryRef.current(0), 600)
               }}
               onBlur={e => {
                 const parsed = parseInt(e.target.value) || 100

@@ -155,7 +155,7 @@ function AppShell() {
             <ConnectionDropdown />
           </header>
           {page === 'control' && <ControlPage />}
-          {page === 'query'   && <QueryPage />}
+          <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${page !== 'query' ? 'hidden' : ''}`}><QueryPage /></div>
         </main>
       </div>
       <OnboardingModal />
