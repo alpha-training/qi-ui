@@ -5,10 +5,11 @@ import { ControlProvider, useControl } from './context/ControlContext'
 import Sidebar from './components/sidebar/Sidebar'
 import ControlPage from './pages/ControlPage'
 import QueryPage from './pages/QueryPage'
+import BacktestPage from './pages/BacktestPage'
 import ConnectionDropdown from './components/ConnectionDropdown'
 import { X, Wifi } from 'lucide-react'
 
-export type AppPage = 'control' | 'query'
+export type AppPage = 'control' | 'query' | 'backtest'
 
 function ApiStatus() {
   const { connected } = useControl()
@@ -135,7 +136,7 @@ function OnboardingModal() {
   )
 }
 
-const PAGE_TITLES: Record<AppPage, string> = { control: 'Control', query: 'Query' }
+const PAGE_TITLES: Record<AppPage, string> = { control: 'Control', query: 'Query', backtest: 'Backtest' }
 
 function AppShell() {
   const [page, setPage] = useState<AppPage>(() =>
@@ -155,6 +156,7 @@ function AppShell() {
             <ConnectionDropdown />
           </header>
           {page === 'control' && <ControlPage />}
+          {page === 'backtest' && <BacktestPage />}
           <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${page !== 'query' ? 'hidden' : ''}`}><QueryPage /></div>
         </main>
       </div>

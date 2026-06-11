@@ -10,7 +10,7 @@ const NAV: { icon: React.ElementType; label: string; page: AppPage | null }[] = 
   { icon: LayoutGrid,    label: 'Control',  page: 'control' },
   { icon: Terminal,      label: 'Query',    page: 'query'   },
   { icon: TrendingUp,    label: 'Strats',   page: null },
-  { icon: BarChart2,     label: 'Charts',   page: null },
+  { icon: BarChart2,     label: 'Backtest', page: 'backtest' },
   { icon: Database,      label: 'Data',     page: null },
   { icon: ShoppingCart,  label: 'Orders',   page: null },
   { icon: AlertTriangle, label: 'Risk',     page: null },
