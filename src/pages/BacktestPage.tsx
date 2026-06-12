@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { RefreshCw, TrendingUp, Play, FileText } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
+import { useControl } from '../context/ControlContext'
 import { fetchPerf, parseKdbTime, type PerfData } from '../api/perf'
 import { listRuns, loadRunConfig, saveFile, runBacktest, type RunRef, type RunConfig, type FileKey } from '../api/bt'
 import EquityChart from '../components/backtest/EquityChart'
@@ -9,6 +10,7 @@ import CodeEditor, { type EditorKind } from '../components/backtest/CodeEditor'
 const HOST_KEY = 'qi_backtest_host'
 const PORT_KEY = 'qi_backtest_port'
 const RUN_KEY = 'qi_backtest_run'
+const VIEW_KEY = 'qi_backtest_view'
 
 type View = 'setup' | 'results'
 
@@ -66,6 +68,7 @@ function fmtTime(s: string): string {
 
 export default function BacktestPage() {
   const { theme } = useTheme()
+  const { connected } = useControl()  // hub WebSocket established
 
   // ── Target engine (host:port reachable from the hub) ──
   const [host, setHost] = useState(() => localStorage.getItem(HOST_KEY) ?? 'localhost')
@@ -75,7 +78,8 @@ export default function BacktestPage() {
   useEffect(() => { localStorage.setItem(HOST_KEY, host) }, [host])
   useEffect(() => { localStorage.setItem(PORT_KEY, port) }, [port])
 
-  const [view, setView] = useState<View>('setup')
+  const [view, setView] = useState<View>(() => (localStorage.getItem(VIEW_KEY) as View) ?? 'results')
+  useEffect(() => { localStorage.setItem(VIEW_KEY, view) }, [view])
   const [error, setError] = useState<string | null>(null)
 
   // ── Results state ──
@@ -113,6 +117,17 @@ export default function BacktestPage() {
     }
   }, [loading, targetOk, host, portNum])
 
+  // Auto-load the latest results once per target, so opening the tab shows the
+  // engine's current backtest with no manual "Load results" click.
+  const autoLoadedRef = useRef('')
+  useEffect(() => {
+    if (!connected || !targetOk || loading || data) return  // wait for the hub WS
+    const key = `${host}:${portNum}`
+    if (autoLoadedRef.current === key) return  // already attempted for this target
+    autoLoadedRef.current = key
+    load()
+  }, [connected, targetOk, host, portNum, data, loading, load])
+
   // ── Load run list (when entering setup with none loaded) ──
   const refreshRuns = useCallback(async () => {
     if (!targetOk) return
@@ -126,9 +141,9 @@ export default function BacktestPage() {
   }, [targetOk, host, portNum])
 
   useEffect(() => {
-    if (view === 'setup' && targetOk && runs.length === 0) refreshRuns()
+    if (view === 'setup' && connected && targetOk && runs.length === 0) refreshRuns()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, targetOk])
+  }, [view, connected, targetOk])
 
   // ── Load a run's config files when the selection changes ──
   const loadConfig = useCallback(async (name: string) => {
@@ -150,11 +165,12 @@ export default function BacktestPage() {
   useEffect(() => {
     if (view !== 'setup' || !selectedRun) return
     localStorage.setItem(RUN_KEY, selectedRun)
+    if (!connected) return  // wait for the hub WS before fetching config
     if (loadedRunRef.current === selectedRun && config) return
     loadedRunRef.current = selectedRun
     loadConfig(selectedRun)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, selectedRun])
+  }, [view, selectedRun, connected])
 
   const dirty = useMemo(() => {
     if (!config) return {} as Record<FileKey, boolean>
