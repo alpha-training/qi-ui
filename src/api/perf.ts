@@ -17,7 +17,7 @@
  * timestamps as "yyyy-mm-ddThh:mm:ss.000000000" (9-digit nanoseconds).
  */
 
-import * as qApi from './qws'
+import { relay } from './engine'
 
 export interface InfoRow {
   sym: string
@@ -50,18 +50,11 @@ export interface EquityRow {
   dd_pct: number
 }
 
-export interface BenchRow {
-  sym: string
-  dt: string            // "2026-02-01"
-  close: number         // underlying close (for buy-and-hold benchmark)
-}
-
 export interface PerfData {
   info: InfoRow[]
   stats: StatsRow[]
   trades: TradeRow[]
   equity: EquityRow[]
-  bench: BenchRow[]     // empty for spread strategies (no underlying close)
   syms: string[]
 }
 
@@ -85,11 +78,10 @@ export function parseKdbTime(v: string): Date {
 const NO_RESULTS = 'noresults'
 const TARGET_QUERY =
   '$[`Equity in system"a";' +
-  '`Info`Stats`Trades`Equity`Bench`syms!(' +
+  '`Info`Stats`Trades`Equity`syms!(' +
   '0!Info;0!Stats;' +
   'select side,sym,entryTime,exitTime,unwind,entryPx,exitPx,qty,rpnl,ret_pct,bars from Trades;' +
   'select sym,dt,pv,dd_pct from Equity;' +
-  '$[`DPV in key`.bt;select sym,dt,close from .bt.DPV;()];' +  // buy-and-hold underlying
   'asc exec distinct sym from Equity);' +
   '`' + NO_RESULTS + ']'
 
@@ -98,7 +90,6 @@ interface RawPerf {
   Stats: StatsRow[]
   Trades: TradeRow[]
   Equity: EquityRow[]
-  Bench: BenchRow[]
   syms: string[]
 }
 
@@ -108,12 +99,9 @@ interface RawPerf {
  * if no backtest tables are present or the target is unreachable.
  */
 export async function fetchPerf(host: string, port: number): Promise<PerfData> {
-  const inner = TARGET_QUERY.replace(/"/g, '\\"')
   // Hub hopens the target over IPC, pulls the tables, closes the handle.
   // hopen / remote errors propagate to the hub's catch as a "kdb error:" string.
-  const relay = `h:hopen\`$":${host}:${port}"; r:h"${inner}"; hclose h; r`
-
-  const res = await qApi.runQuery(relay, 30000)
+  const res = await relay(host, port, TARGET_QUERY, 30000)
 
   if (res === NO_RESULTS)
     throw new Error('No backtest results on this process — run a backtest so Info/Stats/Trades/Equity exist.')
@@ -126,7 +114,6 @@ export async function fetchPerf(host: string, port: number): Promise<PerfData> {
     stats: d.Stats ?? [],
     trades: d.Trades ?? [],
     equity: d.Equity ?? [],
-    bench: d.Bench ?? [],
     syms: d.syms ?? [],
   }
 }
